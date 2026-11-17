@@ -430,3 +430,7 @@ Use the [starter template](https://github.com/autohive-ai/integrations-sdk/tree/
 ## Testing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for instructions on running and writing unit tests.
+
+### Lusha
+
+[lusha](lusha): Find and enrich business contacts and companies using Lusha v3. Includes 12 actions for identifier-based lookup, batch enrichment, filtered prospecting with explicit pagination, filter discovery, account credit usage, and asynchronous contact enrichment job status. Uses custom API-key authentication and preserves provider credit usage and per-record errors.

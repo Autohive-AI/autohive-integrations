@@ -1,0 +1,2190 @@
+{
+    "name": "lusha",
+    "version": "1.0.0",
+    "display_name": "Lusha",
+    "description": "Find and enrich business contacts and companies with Lusha v3, prospect by target-market filters, and monitor credit usage.",
+    "entry_point": "lusha.py",
+    "supports_billing": false,
+    "auth": {
+        "type": "custom",
+        "title": "Lusha API Key",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "API Key",
+                    "help_text": "Generate a key at https://dashboard.lusha.com/api/manage-api-keys. Your user must have API access enabled.",
+                    "minLength": 1,
+                    "pattern": "\\S"
+                }
+            },
+            "required": [
+                "api_key"
+            ]
+        }
+    },
+    "actions": {
+        "search_contacts": {
+            "display_name": "Search Contacts",
+            "description": "Look up 1-100 contacts by known identifiers and return previews, availability and reveal costs. Search consumes Lusha credits.",
+            "input_schema": {
+                "type": "object",
+                "required": [
+                    "contacts"
+                ],
+                "properties": {
+                    "contacts": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "clientReferenceId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "id": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "linkedinUrl": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "email": {
+                                    "type": "string",
+                                    "format": "email",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "firstName": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "lastName": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "companyName": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "companyDomain": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                }
+                            },
+                            "additionalProperties": false
+                        },
+                        "minItems": 1,
+                        "maxItems": 100,
+                        "description": "One to 100 contacts. Each requires id, email, linkedinUrl, or firstName + lastName + companyName/companyDomain. Nested keys use Lusha field names."
+                    },
+                    "options": {
+                        "type": "object",
+                        "description": "Additional options for search requests",
+                        "properties": {
+                            "includePartialProfiles": {
+                                "type": "boolean",
+                                "description": "Include partial profiles in results"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                },
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "requestId": {
+                        "type": "string",
+                        "description": "Lusha request correlation ID."
+                    },
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Provider records, including per-record error objects and reveal availability when returned."
+                    },
+                    "billing": {
+                        "type": "object",
+                        "description": "Lusha credit usage for this request.",
+                        "properties": {
+                            "creditsCharged": {
+                                "type": "number"
+                            },
+                            "resultsReturned": {
+                                "type": "integer"
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "results"
+                ]
+            }
+        },
+        "enrich_contacts": {
+            "display_name": "Enrich Contacts",
+            "description": "Reveal data for 1-100 contacts using Lusha IDs from search or prospecting. Consumes credits; preserves per-record failures.",
+            "input_schema": {
+                "type": "object",
+                "required": [
+                    "ids"
+                ],
+                "properties": {
+                    "ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "\\S"
+                        },
+                        "minItems": 1,
+                        "maxItems": 100,
+                        "description": "One to 100 Lusha IDs returned by search or prospecting."
+                    },
+                    "reveal": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "emails",
+                                "phones"
+                            ],
+                            "minLength": 1,
+                            "pattern": "\\S"
+                        },
+                        "minItems": 1,
+                        "uniqueItems": true,
+                        "description": "Fields to reveal. Omit for provider defaults; additional fields consume credits."
+                    },
+                    "waterfallEnabled": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "Whether this call is allowed to fall through to your enabled\nthird-party providers when Lusha's own data has no match, for the fields\nrequested via `reveal`. Defaults to `true` whenever Data Waterfall is\nenabled on your account (Account > Waterfall) - pass `false` to opt this\nspecific call out. Has no effect if Data Waterfall or no providers are\nenabled on your account. Provider order isn't configurable - Lusha manages\nthat internally.\n`false` means Lusha data only. If Lusha does not have a requested field, the response sets `statusReason: WATERFALL_DISABLED`.\n"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "requestId": {
+                        "type": "string",
+                        "description": "Lusha request correlation ID."
+                    },
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Provider records, including per-record error objects and reveal availability when returned."
+                    },
+                    "billing": {
+                        "type": "object",
+                        "description": "Lusha credit usage for this request.",
+                        "properties": {
+                            "creditsCharged": {
+                                "type": "number"
+                            },
+                            "resultsReturned": {
+                                "type": "integer"
+                            }
+                        }
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Enrichment status when waterfall ran."
+                    },
+                    "statusDescription": {
+                        "type": "string",
+                        "description": "Provider explanation of enrichment status."
+                    },
+                    "statusReason": {
+                        "type": "string",
+                        "description": "Provider reason for unavailable enrichment fields."
+                    },
+                    "job": {
+                        "type": "object",
+                        "description": "Optional asynchronous waterfall job; poll get_contact_enrichment_job after retryAfter seconds.",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "status": {
+                                "type": "string"
+                            },
+                            "retryAfter": {
+                                "type": "number"
+                            },
+                            "expiresAt": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "results"
+                ]
+            }
+        },
+        "search_and_enrich_contacts": {
+            "display_name": "Search and Enrich Contacts",
+            "description": "Find 1-100 contacts by identifiers and reveal full profiles in one call. Search and reveal charges both apply.",
+            "input_schema": {
+                "type": "object",
+                "required": [
+                    "contacts"
+                ],
+                "properties": {
+                    "contacts": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "clientReferenceId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "id": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "linkedinUrl": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "email": {
+                                    "type": "string",
+                                    "format": "email",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "firstName": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "lastName": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "companyName": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "companyDomain": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                }
+                            },
+                            "additionalProperties": false
+                        },
+                        "minItems": 1,
+                        "maxItems": 100,
+                        "description": "One to 100 contacts. Each requires id, email, linkedinUrl, or firstName + lastName + companyName/companyDomain. Nested keys use Lusha field names."
+                    },
+                    "reveal": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "emails",
+                                "phones"
+                            ],
+                            "minLength": 1,
+                            "pattern": "\\S"
+                        },
+                        "minItems": 1,
+                        "uniqueItems": true,
+                        "description": "Fields to reveal. Omit for provider defaults; additional fields consume credits."
+                    },
+                    "options": {
+                        "type": "object",
+                        "description": "Additional options for search requests",
+                        "properties": {
+                            "includePartialProfiles": {
+                                "type": "boolean",
+                                "description": "Include partial profiles in results"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                },
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "requestId": {
+                        "type": "string",
+                        "description": "Lusha request correlation ID."
+                    },
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Provider records, including per-record error objects and reveal availability when returned."
+                    },
+                    "billing": {
+                        "type": "object",
+                        "description": "Lusha credit usage for this request.",
+                        "properties": {
+                            "creditsCharged": {
+                                "type": "number"
+                            },
+                            "resultsReturned": {
+                                "type": "integer"
+                            }
+                        }
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Enrichment status when waterfall ran."
+                    },
+                    "statusDescription": {
+                        "type": "string",
+                        "description": "Provider explanation of enrichment status."
+                    },
+                    "statusReason": {
+                        "type": "string",
+                        "description": "Provider reason for unavailable enrichment fields."
+                    }
+                },
+                "required": [
+                    "results"
+                ]
+            }
+        },
+        "search_companies": {
+            "display_name": "Search Companies",
+            "description": "Look up 1-100 companies by known identifiers and return previews, availability and reveal costs. Search consumes Lusha credits.",
+            "input_schema": {
+                "type": "object",
+                "required": [
+                    "companies"
+                ],
+                "properties": {
+                    "companies": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "clientReferenceId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "id": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "domain": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                }
+                            },
+                            "additionalProperties": false
+                        },
+                        "minItems": 1,
+                        "maxItems": 100,
+                        "description": "One to 100 companies. Each requires id, name or domain. clientReferenceId is optional."
+                    },
+                    "options": {
+                        "type": "object",
+                        "description": "Additional options for search requests",
+                        "properties": {
+                            "includePartialProfiles": {
+                                "type": "boolean",
+                                "description": "Include partial profiles in results"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                },
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "requestId": {
+                        "type": "string",
+                        "description": "Lusha request correlation ID."
+                    },
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Provider records, including per-record error objects and reveal availability when returned."
+                    },
+                    "billing": {
+                        "type": "object",
+                        "description": "Lusha credit usage for this request.",
+                        "properties": {
+                            "creditsCharged": {
+                                "type": "number"
+                            },
+                            "resultsReturned": {
+                                "type": "integer"
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "results"
+                ]
+            }
+        },
+        "enrich_companies": {
+            "display_name": "Enrich Companies",
+            "description": "Reveal data for 1-100 companies using Lusha IDs from search or prospecting. Consumes credits; preserves per-record failures.",
+            "input_schema": {
+                "type": "object",
+                "required": [
+                    "ids"
+                ],
+                "properties": {
+                    "ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "\\S"
+                        },
+                        "minItems": 1,
+                        "maxItems": 100,
+                        "description": "Company IDs from search results (strings)"
+                    },
+                    "reveal": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "employeesByDepartment",
+                                "employeesByLocation",
+                                "employeesBySeniority",
+                                "competitors",
+                                "estimatedAnnualItSpend",
+                                "monthlyWebsiteTraffic",
+                                "openJobsTotal",
+                                "openJobsByDepartment",
+                                "openJobsByLocation",
+                                "openJobsBySeniority",
+                                "directParent",
+                                "ultimateParent"
+                            ],
+                            "minLength": 1,
+                            "pattern": "\\S"
+                        },
+                        "description": "Additional data fields to reveal. Each field is charged separately per result.\n- `employeesByDepartment` - breakdown of employees by department\n- `employeesByLocation` - breakdown of employees by country/state\n- `employeesBySeniority` - breakdown of employees by seniority level\n- `competitors` - list of competitor company IDs\n- `estimatedAnnualItSpend` - estimated annual IT spend.\n- `monthlyWebsiteTraffic` - monthly website traffic and month-over-month change.\n- `openJobsTotal` - reveals the total open job count. In the response, this appears as the `total` field inside the `openJobs` object.\n- `openJobsByDepartment` - reveals open job counts broken down by department. In the response, this appears as the `byDepartment` field inside the `openJobs` object.\n- `openJobsByLocation` - reveals open job counts broken down by location. In the response, this appears as the `byLocation` field inside the `openJobs` object.\n- `openJobsBySeniority` - reveals open job counts broken down by seniority level. In the response, this appears as the `bySeniority` field inside the `openJobs` object.\n- `directParent` - the company's immediate parent in its ownership tree.\n- `ultimateParent` - the company at the top of its ownership tree.\n",
+                        "minItems": 1,
+                        "uniqueItems": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "requestId": {
+                        "type": "string",
+                        "description": "Lusha request correlation ID."
+                    },
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Provider records, including per-record error objects and reveal availability when returned."
+                    },
+                    "billing": {
+                        "type": "object",
+                        "description": "Lusha credit usage for this request.",
+                        "properties": {
+                            "creditsCharged": {
+                                "type": "number"
+                            },
+                            "resultsReturned": {
+                                "type": "integer"
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "results"
+                ]
+            }
+        },
+        "search_and_enrich_companies": {
+            "display_name": "Search and Enrich Companies",
+            "description": "Find 1-100 companies by identifiers and reveal full profiles in one call. Search and reveal charges both apply.",
+            "input_schema": {
+                "type": "object",
+                "required": [
+                    "companies"
+                ],
+                "properties": {
+                    "companies": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "clientReferenceId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "id": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                },
+                                "domain": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "pattern": "\\S"
+                                }
+                            },
+                            "additionalProperties": false
+                        },
+                        "minItems": 1,
+                        "maxItems": 100,
+                        "description": "One to 100 companies. Each requires id, name or domain. clientReferenceId is optional."
+                    },
+                    "reveal": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "employeesByDepartment",
+                                "employeesByLocation",
+                                "employeesBySeniority",
+                                "competitors",
+                                "estimatedAnnualItSpend",
+                                "monthlyWebsiteTraffic",
+                                "openJobsTotal",
+                                "openJobsByDepartment",
+                                "openJobsByLocation",
+                                "openJobsBySeniority",
+                                "directParent",
+                                "ultimateParent"
+                            ],
+                            "minLength": 1,
+                            "pattern": "\\S"
+                        },
+                        "description": "Additional data fields to reveal, using the same tokens as Enrich Companies.\nEach field is charged separately per result. Premium fields are returned only\nwhen named here - omitting `reveal` returns base firmographics alone.\nSee [Enrich Companies](#operation/enrichCompanies) for what each token unlocks.\n",
+                        "minItems": 1,
+                        "uniqueItems": true
+                    },
+                    "options": {
+                        "type": "object",
+                        "description": "Additional options for search requests",
+                        "properties": {
+                            "includePartialProfiles": {
+                                "type": "boolean",
+                                "description": "Include partial profiles in results"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                },
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "requestId": {
+                        "type": "string",
+                        "description": "Lusha request correlation ID."
+                    },
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Provider records, including per-record error objects and reveal availability when returned."
+                    },
+                    "billing": {
+                        "type": "object",
+                        "description": "Lusha credit usage for this request.",
+                        "properties": {
+                            "creditsCharged": {
+                                "type": "number"
+                            },
+                            "resultsReturned": {
+                                "type": "integer"
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "results"
+                ]
+            }
+        },
+        "prospect_contacts": {
+            "display_name": "Prospect Contacts",
+            "description": "Find one page of contacts by target-market filters. Returns previews and Lusha IDs for enrichment. Consumes search credits; does not reveal full profiles.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "filters": {
+                        "type": "object",
+                        "properties": {
+                            "contacts": {
+                                "type": "object",
+                                "properties": {
+                                    "include": {
+                                        "type": "object",
+                                        "properties": {
+                                            "names": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "jobTitles": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "countries": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "locations": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "description": "Location filter object used in prospecting requests",
+                                                    "properties": {
+                                                        "city": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "state": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "country": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "continent": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "countryGrouping": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "region": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "countryIso2": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            },
+                                            "seniorityIds": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "departments": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "existingDataPoints": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                },
+                                                "description": "Encrypted contact id from a prior search's `results[].id`."
+                                            }
+                                        },
+                                        "required": [],
+                                        "additionalProperties": false
+                                    },
+                                    "exclude": {
+                                        "type": "object",
+                                        "properties": {
+                                            "names": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "jobTitles": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "countries": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "locations": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "description": "Location filter object used in prospecting requests",
+                                                    "properties": {
+                                                        "city": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "state": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "country": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "continent": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "countryGrouping": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "region": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "countryIso2": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            },
+                                            "seniorityIds": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "departments": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "existingDataPoints": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                },
+                                                "description": "Encrypted contact id from a prior search's `results[].id`."
+                                            }
+                                        },
+                                        "required": [],
+                                        "additionalProperties": false
+                                    }
+                                },
+                                "required": [],
+                                "additionalProperties": false
+                            },
+                            "companies": {
+                                "type": "object",
+                                "properties": {
+                                    "include": {
+                                        "type": "object",
+                                        "properties": {
+                                            "names": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "domains": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "locations": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "description": "Location filter object used in prospecting requests",
+                                                    "properties": {
+                                                        "city": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "state": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "country": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "continent": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "countryGrouping": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "region": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "countryIso2": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            },
+                                            "sizes": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "description": "Numeric range filter",
+                                                    "properties": {
+                                                        "min": {
+                                                            "type": "integer",
+                                                            "minimum": 0
+                                                        },
+                                                        "max": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            },
+                                            "revenues": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "description": "Numeric range filter",
+                                                    "properties": {
+                                                        "min": {
+                                                            "type": "integer",
+                                                            "minimum": 0
+                                                        },
+                                                        "max": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            },
+                                            "technologies": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "technologiesCondition": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "or",
+                                                    "and"
+                                                ],
+                                                "minLength": 1,
+                                                "pattern": "\\S"
+                                            },
+                                            "mainIndustriesIds": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "subIndustriesIds": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "sicCodes": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "naicsCodes": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "businessModel": {
+                                                "type": "array",
+                                                "description": "Filter by business model. Accepted values: B2B, B2C, B2G.",
+                                                "items": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "B2B",
+                                                        "B2C",
+                                                        "B2G"
+                                                    ],
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "companyType": {
+                                                "type": "array",
+                                                "description": "Filter by company type. Accepted values: Government, Private Company, Public Company, Educational, Non Profit, Self Employed.",
+                                                "items": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "Government",
+                                                        "Private Company",
+                                                        "Public Company",
+                                                        "Educational",
+                                                        "Non Profit",
+                                                        "Self Employed"
+                                                    ],
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "linkedinUrls": {
+                                                "type": "array",
+                                                "description": "Filter by company LinkedIn URLs.",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "keywords": {
+                                                "type": "array",
+                                                "description": "Filter by keywords associated with the company.",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "foundedYear": {
+                                                "type": "array",
+                                                "description": "Filter by year the company was founded. Supports `min` (greater than or equal) and `max` (less than or equal) range operators.",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "min": {
+                                                            "type": "integer"
+                                                        },
+                                                        "max": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            }
+                                        },
+                                        "required": [],
+                                        "additionalProperties": false
+                                    },
+                                    "exclude": {
+                                        "type": "object",
+                                        "properties": {
+                                            "names": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "domains": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "locations": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "description": "Location filter object used in prospecting requests",
+                                                    "properties": {
+                                                        "city": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "state": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "country": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "continent": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "countryGrouping": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "region": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "countryIso2": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            },
+                                            "sizes": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "description": "Numeric range filter",
+                                                    "properties": {
+                                                        "min": {
+                                                            "type": "integer",
+                                                            "minimum": 0
+                                                        },
+                                                        "max": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            },
+                                            "revenues": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "description": "Numeric range filter",
+                                                    "properties": {
+                                                        "min": {
+                                                            "type": "integer",
+                                                            "minimum": 0
+                                                        },
+                                                        "max": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            },
+                                            "technologies": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "technologiesCondition": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "or",
+                                                    "and"
+                                                ],
+                                                "minLength": 1,
+                                                "pattern": "\\S"
+                                            },
+                                            "mainIndustriesIds": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "subIndustriesIds": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "sicCodes": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "naicsCodes": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "businessModel": {
+                                                "type": "array",
+                                                "description": "Filter by business model. Accepted values: B2B, B2C, B2G.",
+                                                "items": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "B2B",
+                                                        "B2C",
+                                                        "B2G"
+                                                    ],
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "companyType": {
+                                                "type": "array",
+                                                "description": "Filter by company type. Accepted values: Government, Private Company, Public Company, Educational, Non Profit, Self Employed.",
+                                                "items": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "Government",
+                                                        "Private Company",
+                                                        "Public Company",
+                                                        "Educational",
+                                                        "Non Profit",
+                                                        "Self Employed"
+                                                    ],
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "linkedinUrls": {
+                                                "type": "array",
+                                                "description": "Filter by company LinkedIn URLs.",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "keywords": {
+                                                "type": "array",
+                                                "description": "Filter by keywords associated with the company.",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "foundedYear": {
+                                                "type": "array",
+                                                "description": "Filter by year the company was founded. Supports `min` (greater than or equal) and `max` (less than or equal) range operators.",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "min": {
+                                                            "type": "integer"
+                                                        },
+                                                        "max": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            }
+                                        },
+                                        "required": [],
+                                        "additionalProperties": false
+                                    }
+                                },
+                                "required": [],
+                                "additionalProperties": false
+                            }
+                        },
+                        "required": [],
+                        "additionalProperties": false,
+                        "description": "ICP filters with include/exclude groups. Use list_filter_types and get_filter_values to discover accepted values. Nested keys use Lusha field names."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1000,
+                        "default": 0,
+                        "description": "Zero-based page number. Fetch one page per action."
+                    },
+                    "size": {
+                        "type": "integer",
+                        "minimum": 10,
+                        "maximum": 100,
+                        "default": 25,
+                        "description": "Number of records per page (10-100)."
+                    },
+                    "options": {
+                        "type": "object",
+                        "properties": {
+                            "includePartialProfiles": {
+                                "type": "boolean",
+                                "default": true
+                            },
+                            "excludeDnc": {
+                                "type": "boolean"
+                            },
+                            "maxContactsPerCompany": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 20,
+                                "description": "Caps how many contacts are returned per company - not the page size. `pagination.size` still controls the page size. Accepts 1\u201320; omit for uncapped results.\n"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                },
+                "required": [
+                    "filters"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "requestId": {
+                        "type": "string",
+                        "description": "Lusha request correlation ID."
+                    },
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Provider records, including per-record error objects and reveal availability when returned."
+                    },
+                    "billing": {
+                        "type": "object",
+                        "description": "Lusha credit usage for this request.",
+                        "properties": {
+                            "creditsCharged": {
+                                "type": "number"
+                            },
+                            "resultsReturned": {
+                                "type": "integer"
+                            }
+                        }
+                    },
+                    "pagination": {
+                        "type": "object",
+                        "description": "Provider page, size, total and optional totalGuaranteed/totalDescription. Preserve these when deciding whether to fetch another page.",
+                        "properties": {
+                            "page": {
+                                "type": "integer"
+                            },
+                            "size": {
+                                "type": "integer"
+                            },
+                            "total": {
+                                "type": "integer"
+                            },
+                            "totalGuaranteed": {
+                                "type": "boolean"
+                            },
+                            "totalDescription": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "results"
+                ]
+            }
+        },
+        "prospect_companies": {
+            "display_name": "Prospect Companies",
+            "description": "Find one page of companies by target-market filters. Returns previews and Lusha IDs for enrichment. Consumes search credits; does not reveal full profiles.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "filters": {
+                        "type": "object",
+                        "properties": {
+                            "companies": {
+                                "type": "object",
+                                "properties": {
+                                    "include": {
+                                        "type": "object",
+                                        "properties": {
+                                            "names": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "domains": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "locations": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "description": "Location filter object used in prospecting requests",
+                                                    "properties": {
+                                                        "city": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "state": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "country": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "continent": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "countryGrouping": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "region": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "countryIso2": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            },
+                                            "sizes": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "description": "Numeric range filter",
+                                                    "properties": {
+                                                        "min": {
+                                                            "type": "integer",
+                                                            "minimum": 0
+                                                        },
+                                                        "max": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            },
+                                            "revenues": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "description": "Numeric range filter",
+                                                    "properties": {
+                                                        "min": {
+                                                            "type": "integer",
+                                                            "minimum": 0
+                                                        },
+                                                        "max": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            },
+                                            "technologies": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "technologiesCondition": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "or",
+                                                    "and"
+                                                ],
+                                                "minLength": 1,
+                                                "pattern": "\\S"
+                                            },
+                                            "mainIndustriesIds": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "subIndustriesIds": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "sicCodes": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "naicsCodes": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "businessModel": {
+                                                "type": "array",
+                                                "description": "Filter by business model. Accepted values: B2B, B2C, B2G.",
+                                                "items": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "B2B",
+                                                        "B2C",
+                                                        "B2G"
+                                                    ],
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "companyType": {
+                                                "type": "array",
+                                                "description": "Filter by company type. Accepted values: Government, Private Company, Public Company, Educational, Non Profit, Self Employed.",
+                                                "items": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "Government",
+                                                        "Private Company",
+                                                        "Public Company",
+                                                        "Educational",
+                                                        "Non Profit",
+                                                        "Self Employed"
+                                                    ],
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "linkedinUrls": {
+                                                "type": "array",
+                                                "description": "Filter by company LinkedIn URLs.",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "keywords": {
+                                                "type": "array",
+                                                "description": "Filter by keywords associated with the company.",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "foundedYear": {
+                                                "type": "array",
+                                                "description": "Filter by year the company was founded. Supports `min` (greater than or equal) and `max` (less than or equal) range operators.",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "min": {
+                                                            "type": "integer"
+                                                        },
+                                                        "max": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            }
+                                        },
+                                        "required": [],
+                                        "additionalProperties": false
+                                    },
+                                    "exclude": {
+                                        "type": "object",
+                                        "properties": {
+                                            "names": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "domains": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "ids": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "locations": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "description": "Location filter object used in prospecting requests",
+                                                    "properties": {
+                                                        "city": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "state": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "country": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "continent": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "countryGrouping": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "region": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        },
+                                                        "countryIso2": {
+                                                            "type": "string",
+                                                            "minLength": 1,
+                                                            "pattern": "\\S"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            },
+                                            "sizes": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "description": "Numeric range filter",
+                                                    "properties": {
+                                                        "min": {
+                                                            "type": "integer",
+                                                            "minimum": 0
+                                                        },
+                                                        "max": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            },
+                                            "revenues": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "description": "Numeric range filter",
+                                                    "properties": {
+                                                        "min": {
+                                                            "type": "integer",
+                                                            "minimum": 0
+                                                        },
+                                                        "max": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            },
+                                            "technologies": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "technologiesCondition": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "or",
+                                                    "and"
+                                                ],
+                                                "minLength": 1,
+                                                "pattern": "\\S"
+                                            },
+                                            "mainIndustriesIds": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "subIndustriesIds": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "sicCodes": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "naicsCodes": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "businessModel": {
+                                                "type": "array",
+                                                "description": "Filter by business model. Accepted values: B2B, B2C, B2G.",
+                                                "items": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "B2B",
+                                                        "B2C",
+                                                        "B2G"
+                                                    ],
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "companyType": {
+                                                "type": "array",
+                                                "description": "Filter by company type. Accepted values: Government, Private Company, Public Company, Educational, Non Profit, Self Employed.",
+                                                "items": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "Government",
+                                                        "Private Company",
+                                                        "Public Company",
+                                                        "Educational",
+                                                        "Non Profit",
+                                                        "Self Employed"
+                                                    ],
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "linkedinUrls": {
+                                                "type": "array",
+                                                "description": "Filter by company LinkedIn URLs.",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "keywords": {
+                                                "type": "array",
+                                                "description": "Filter by keywords associated with the company.",
+                                                "items": {
+                                                    "type": "string",
+                                                    "minLength": 1,
+                                                    "pattern": "\\S"
+                                                }
+                                            },
+                                            "foundedYear": {
+                                                "type": "array",
+                                                "description": "Filter by year the company was founded. Supports `min` (greater than or equal) and `max` (less than or equal) range operators.",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "min": {
+                                                            "type": "integer"
+                                                        },
+                                                        "max": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "additionalProperties": false
+                                                }
+                                            }
+                                        },
+                                        "required": [],
+                                        "additionalProperties": false
+                                    }
+                                },
+                                "required": [
+                                    "include"
+                                ],
+                                "additionalProperties": false
+                            }
+                        },
+                        "required": [
+                            "companies"
+                        ],
+                        "additionalProperties": false,
+                        "description": "ICP filters with include/exclude groups. Use list_filter_types and get_filter_values to discover accepted values. Nested keys use Lusha field names."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1000,
+                        "default": 0,
+                        "description": "Zero-based page number. Fetch one page per action."
+                    },
+                    "size": {
+                        "type": "integer",
+                        "minimum": 10,
+                        "maximum": 100,
+                        "default": 25,
+                        "description": "Number of records per page (10-100)."
+                    },
+                    "options": {
+                        "type": "object",
+                        "properties": {
+                            "includePartialProfiles": {
+                                "type": "boolean",
+                                "default": false
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                },
+                "required": [
+                    "filters"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "requestId": {
+                        "type": "string",
+                        "description": "Lusha request correlation ID."
+                    },
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Provider records, including per-record error objects and reveal availability when returned."
+                    },
+                    "billing": {
+                        "type": "object",
+                        "description": "Lusha credit usage for this request.",
+                        "properties": {
+                            "creditsCharged": {
+                                "type": "number"
+                            },
+                            "resultsReturned": {
+                                "type": "integer"
+                            }
+                        }
+                    },
+                    "pagination": {
+                        "type": "object",
+                        "description": "Provider page, size, total and optional totalGuaranteed/totalDescription. Preserve these when deciding whether to fetch another page.",
+                        "properties": {
+                            "page": {
+                                "type": "integer"
+                            },
+                            "size": {
+                                "type": "integer"
+                            },
+                            "total": {
+                                "type": "integer"
+                            },
+                            "totalGuaranteed": {
+                                "type": "boolean"
+                            },
+                            "totalDescription": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "results"
+                ]
+            }
+        },
+        "list_filter_types": {
+            "display_name": "List Filter Types",
+            "description": "Discover available prospecting filter types and which require a query.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "entity": {
+                        "type": "string",
+                        "enum": [
+                            "contacts",
+                            "companies"
+                        ],
+                        "description": "Whether to discover contact or company prospecting filters.",
+                        "minLength": 1,
+                        "pattern": "\\S"
+                    }
+                },
+                "required": [
+                    "entity"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "availableFilters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Available filter types and requiresQuery flags."
+                    },
+                    "filters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Optional detailed filter catalog."
+                    },
+                    "generatedAt": {
+                        "type": "string",
+                        "description": "Optional catalog timestamp."
+                    }
+                },
+                "required": []
+            }
+        },
+        "get_filter_values": {
+            "display_name": "Get Filter Values",
+            "description": "Look up valid values for one prospecting filter. Locations, company names and technologies require a query.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "entity": {
+                        "type": "string",
+                        "enum": [
+                            "contacts",
+                            "companies"
+                        ],
+                        "description": "Whether to discover contact or company prospecting filters.",
+                        "minLength": 1,
+                        "pattern": "\\S"
+                    },
+                    "filter_type": {
+                        "type": "string",
+                        "description": "Filter type returned by list_filter_types, such as departments, seniority, countries, locations, sizes or technologies.",
+                        "maxLength": 100,
+                        "minLength": 1,
+                        "pattern": "\\S"
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Search term when requiresQuery is true (2-256 characters).",
+                        "minLength": 2,
+                        "maxLength": 256,
+                        "pattern": "\\S"
+                    }
+                },
+                "required": [
+                    "entity",
+                    "filter_type"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "values": {
+                        "description": "Provider filter values; shape varies by filter type (list, object or null)."
+                    },
+                    "total": {
+                        "type": "integer",
+                        "description": "Matching value count."
+                    },
+                    "truncated": {
+                        "type": "boolean",
+                        "description": "Whether only the first matching values were returned."
+                    }
+                },
+                "required": []
+            }
+        },
+        "get_account_usage": {
+            "display_name": "Get Account Usage",
+            "description": "Get credit balance, plan, rate limits and per-action credit pricing. Limited to five requests per minute.",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "credits": {
+                        "type": "object",
+                        "description": "Total, used and remaining credits."
+                    },
+                    "rateLimits": {
+                        "type": "object",
+                        "description": "Account-level limits and reset times."
+                    },
+                    "plan": {
+                        "type": "object",
+                        "description": "Plan category and dates."
+                    },
+                    "pricing": {
+                        "type": "object",
+                        "description": "Credit prices per action."
+                    }
+                },
+                "required": []
+            }
+        },
+        "get_contact_enrichment_job": {
+            "display_name": "Get Contact Enrichment Job",
+            "description": "Poll a Data Waterfall job once. Wait retryAfter before polling again; on completion merge contacts by id into original results. No polling credits are charged.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "job_id": {
+                        "type": "string",
+                        "description": "job.id returned by enrich_contacts.",
+                        "maxLength": 256,
+                        "minLength": 1,
+                        "pattern": "\\S"
+                    }
+                },
+                "required": [
+                    "job_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "jobId": {
+                        "type": "string",
+                        "description": "Job identifier."
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "processing",
+                            "complete",
+                            "expired",
+                            "failed"
+                        ],
+                        "description": "Whether to continue polling or keep final results."
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "description": "Original request ID."
+                    },
+                    "expiresAt": {
+                        "type": "string",
+                        "description": "Job expiry timestamp."
+                    },
+                    "retryAfter": {
+                        "type": "number",
+                        "description": "Seconds to wait before the next poll."
+                    },
+                    "covers": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Contacts and data points still outstanding."
+                    },
+                    "contacts": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Only contacts covered by this job; merge by id."
+                    },
+                    "creditsCharged": {
+                        "type": "number",
+                        "description": "Async phase charge only; separate from initial billing."
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Reason for failed job."
+                    }
+                },
+                "required": [
+                    "jobId",
+                    "status"
+                ]
+            }
+        }
+    }
+}
