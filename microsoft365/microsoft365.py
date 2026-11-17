@@ -2107,10 +2107,13 @@ class SearchSharePointDocumentsAction(ActionHandler):
             search_query = inputs["query"]
             limit = inputs.get("limit", 10)
 
-            drives, _ = await _fetch_collection(
-                context,
-                f"{GRAPH_API_BASE}/sites/{_encode_path_segment(site_id)}/drives",
-            )
+            if drive_id := inputs.get("drive_id"):
+                drives = [{"id": drive_id}]
+            else:
+                drives, _ = await _fetch_collection(
+                    context,
+                    f"{GRAPH_API_BASE}/sites/{_encode_path_segment(site_id)}/drives",
+                )
             if not drives:
                 return ActionResult(
                     data={

@@ -2168,6 +2168,24 @@ async def test_search_sharepoint_documents(mock_context):
 
 
 @pytest.mark.asyncio
+async def test_search_sharepoint_documents_searches_known_library_directly(mock_context):
+    mock_context.fetch = make_fetch({"value": [{"id": "f1", "name": "report.pdf", "file": {}}]})
+
+    result = await microsoft365.execute_action(
+        "search_sharepoint_documents",
+        {"site_id": "s1", "drive_id": "b!d1", "query": "report"},
+        mock_context,
+    )
+
+    assert result.result.data["files"][0]["id"] == "f1"
+    assert result.result.data["files"][0]["drive_id"] == "b!d1"
+    assert mock_context.fetch.await_count == 1
+    assert mock_context.fetch.call_args.args[0] == (
+        "https://graph.microsoft.com/v1.0/drives/b%21d1/root/search(q='report')"
+    )
+
+
+@pytest.mark.asyncio
 async def test_search_sharepoint_documents_applies_limit_after_filtering_folders(mock_context):
     drives = {"value": [{"id": "d1", "name": "Docs"}]}
     first_page = {

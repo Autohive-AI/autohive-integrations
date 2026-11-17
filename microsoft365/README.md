@@ -613,10 +613,11 @@ Returns the file `id`, `webUrl`, and `size` in bytes. The upload fails if the de
 
 ### `search_sharepoint_documents`
 
-Search for documents across all document libraries in a SharePoint site.
+Find documents by keyword using Microsoft Graph search. Pass a known library ID to search that library directly. Otherwise, the action discovers the site's document libraries and searches them in turn.
 
 **Inputs:**
 - `site_id` (required): The ID of the SharePoint site
+- `drive_id` (optional): ID of a known document library on the supplied site
 - `query` (required): Search query to find documents
 - `limit` (optional): Maximum number of documents (default: 10)
 
@@ -626,7 +627,7 @@ Search for documents across all document libraries in a SharePoint site.
 - `files`: List of matching documents with drive information
 - `total_files`: Total number of files found
 - `drives_searched`: Number of libraries searched
-- `total_drives`: Total number of libraries in the site
+- `total_drives`: Number of candidate libraries. One when searching a known library.
 - `search_errors`: Errors encountered during search (if any)
 
 ---

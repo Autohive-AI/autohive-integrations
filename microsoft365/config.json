@@ -2302,13 +2302,18 @@
     },
     "search_sharepoint_documents": {
       "display_name": "Search SharePoint Documents",
-      "description": "Search for documents within a SharePoint site's document libraries",
+      "description": "Find matching documents by keyword. Pass a known drive_id to search that library directly, or search the site's libraries.",
       "input_schema": {
         "type": "object",
         "properties": {
           "site_id": {
             "type": "string",
             "description": "The ID of the SharePoint site"
+          },
+          "drive_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional ID of a document library belonging to the supplied site. Searches that library directly."
           },
           "query": {
             "type": "string",
@@ -2384,7 +2389,7 @@
           },
           "total_drives": {
             "type": "integer",
-            "description": "Total number of document libraries in the site"
+            "description": "Number of candidate libraries. One for a direct library search."
           },
           "search_errors": {
             "type": "array",
@@ -2809,7 +2814,7 @@
     },
     "list_sharepoint_folder_contents": {
       "display_name": "List SharePoint Folder Contents",
-      "description": "List files and folders within a SharePoint document library or folder. Use without folder_id to list root contents, or with folder_id to browse into subfolders.",
+      "description": "Browse files and folders in a SharePoint library or folder. For keyword lookups, use Search SharePoint Documents with the library ID.",
       "input_schema": {
         "type": "object",
         "properties": {
