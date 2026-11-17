@@ -22,9 +22,10 @@ Required Microsoft Graph API permissions:
 - `Calendars.Read.Shared` — Suggest meeting times with `findMeetingTimes`
 - `Contacts.Read` — Read user contacts
 - `Sites.Read.All` — Access SharePoint sites and document libraries
+- `Sites.Create.All` — Provision SharePoint sites through Microsoft Graph beta. Requires tenant admin consent.
 - `Place.Read.All` — List and query meeting rooms and room lists
 
-Reconnect existing Microsoft 365 connections when upgrading to v4 so Microsoft can grant `Files.ReadWrite.All` for SharePoint uploads and folder creation. Connections upgrading from before v3 also grant `Calendars.Read.Shared` for meeting suggestions.
+Reconnect existing Microsoft 365 connections when upgrading to v4 so Microsoft can grant `Files.ReadWrite.All` for SharePoint uploads and folder creation, and `Sites.Create.All` for site provisioning. Connections upgrading from before v3 also grant `Calendars.Read.Shared` for meeting suggestions.
 
 ## Actions
 
@@ -545,6 +546,16 @@ Read and search contacts from Outlook.
 - `search_truncated`: Whether the scan or page limit was reached before enough matches were found
 
 ---
+
+### `create_sharepoint_site`
+
+Start provisioning a communication site (`sitepagepublishing`) or standalone team site (`sts`). Supply the site display `name`, full SharePoint `web_url`, and `template`. Optionally set the `locale` (default `en-US`), `description`, and `owner_email`. Tenant admin consent for delegated `Sites.Create.All` and a reauthorized connection are required. Microsoft documents [this Graph endpoint](https://learn.microsoft.com/en-us/graph/api/site-post-sites?view=graph-rest-beta) as beta and does not support it for production use.
+
+The response returns the requested `web_url` and an `operation_id` after Microsoft accepts the request.
+
+### `get_sharepoint_site_creation_status`
+
+Pass the `operation_id` returned by site creation. The action returns Microsoft's provisioning status and any error details. Once the status is `succeeded`, use the returned `site_id` with `list_sharepoint_libraries`.
 
 ### `search_sharepoint_sites`
 

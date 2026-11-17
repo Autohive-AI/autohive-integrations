@@ -15,6 +15,7 @@
       "Calendars.Read.Shared",
       "Contacts.Read",
       "Sites.Read.All",
+      "Sites.Create.All",
       "Place.Read.All"
     ]
   },
@@ -1882,6 +1883,112 @@
           "query",
           "total_results",
           "messages"
+        ]
+      }
+    },
+    "create_sharepoint_site": {
+      "display_name": "Create SharePoint Site (Preview)",
+      "description": "Start provisioning a SharePoint communication or standalone team site using Microsoft Graph beta. Use Get SharePoint Site Creation Status to check when it is ready.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name for the new site",
+            "minLength": 1
+          },
+          "web_url": {
+            "type": "string",
+            "description": "Full HTTPS URL for the new site on your SharePoint tenant",
+            "pattern": "^https://[a-zA-Z0-9-]+\\.sharepoint\\.com/(?:sites|teams)/[^/?#\\s]+$"
+          },
+          "template": {
+            "type": "string",
+            "description": "Site template. sitepagepublishing creates a communication site. sts creates a standalone team site.",
+            "enum": [
+              "sitepagepublishing",
+              "sts"
+            ]
+          },
+          "locale": {
+            "type": "string",
+            "description": "Site language locale",
+            "default": "en-US"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description for the new site"
+          },
+          "owner_email": {
+            "type": "string",
+            "description": "Optional email of the site owner",
+            "format": "email"
+          }
+        },
+        "required": [
+          "name",
+          "web_url",
+          "template"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "description": "Pass this to Get SharePoint Site Creation Status"
+          },
+          "web_url": {
+            "type": "string",
+            "description": "Requested site URL"
+          }
+        },
+        "required": [
+          "operation_id",
+          "web_url"
+        ]
+      }
+    },
+    "get_sharepoint_site_creation_status": {
+      "display_name": "Get SharePoint Site Creation Status (Preview)",
+      "description": "Check a SharePoint site creation operation and get the site ID when Graph finishes provisioning it.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "description": "Operation ID from Create SharePoint Site",
+            "pattern": "^[a-zA-Z0-9+/_=-]+$"
+          }
+        },
+        "required": [
+          "operation_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Status reported by Microsoft Graph"
+          },
+          "site_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The new site ID when Graph returns one"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Provider error details when provisioning fails"
+          }
+        },
+        "required": [
+          "status"
         ]
       }
     },

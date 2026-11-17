@@ -186,6 +186,49 @@ async def test_upload_sharepoint_file_requires_library_id(mock_context):
 
 
 @pytest.mark.asyncio
+async def test_create_sharepoint_site_returns_operation_from_accepted_response(mock_context):
+    base_url = "https://graph.microsoft.com/beta/sites"
+    web_url = "https://example.sharepoint.com/sites/monkeytoe"
+    mock_context.fetch.return_value = FetchResponse(
+        status=202,
+        headers={"location": f"{base_url}/getOperationStatus(operationId='abc%3D')"},
+        data=None,
+    )
+    result = await microsoft365.execute_action(
+        "create_sharepoint_site",
+        {"name": "Monkeytoe", "web_url": web_url, "template": "sitepagepublishing"},
+        mock_context,
+    )
+
+    assert result.result.data == {"operation_id": "abc=", "web_url": web_url}
+    mock_context.fetch.assert_awaited_once_with(
+        base_url,
+        method="POST",
+        json={
+            "name": "Monkeytoe",
+            "webUrl": web_url,
+            "template": "sitepagepublishing",
+            "locale": "en-US",
+            "shareByEmailEnabled": False,
+        },
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status,site_id", [("running", None), ("succeeded", "example.sharepoint.com,site,web")])
+async def test_get_sharepoint_site_creation_status(mock_context, status, site_id):
+    mock_context.fetch = make_fetch({"status": status, "resourceId": site_id})
+    result = await microsoft365.execute_action(
+        "get_sharepoint_site_creation_status", {"operation_id": "abc="}, mock_context
+    )
+
+    assert result.result.data == {"status": status, "site_id": site_id, "error": None}
+    mock_context.fetch.assert_awaited_once_with(
+        "https://graph.microsoft.com/beta/sites/getOperationStatus(operationId='abc%3D')"
+    )
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("parent_id,endpoint", [(None, "root"), ("parent#1", "items/parent%231")])
 async def test_create_sharepoint_folder(mock_context, parent_id, endpoint):
     response = {"id": "folder1", "name": "Reports", "webUrl": "https://example.sharepoint.com/Reports"}

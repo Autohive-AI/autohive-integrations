@@ -21,6 +21,7 @@ microsoft365 = Integration.load()
 
 # Microsoft Graph API Base URL
 GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
+GRAPH_SITE_PROVISIONING_URL = "https://graph.microsoft.com/beta/sites"
 MAX_SIMPLE_UPLOAD_BYTES = 250 * 1024 * 1024
 MAX_DRAFT_ATTACHMENT_BYTES = 3_000_000
 DEFAULT_CONTACT_SEARCH_SCAN_LIMIT = 1000
@@ -1877,6 +1878,64 @@ class SearchEmailsAction(ActionHandler):
                 cost_usd=0.0,
             )
 
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@microsoft365.action("create_sharepoint_site")
+class CreateSharePointSiteAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            web_url = inputs["web_url"]
+            body = {
+                "name": inputs["name"],
+                "webUrl": web_url,
+                "template": inputs["template"],
+                "locale": inputs.get("locale", "en-US"),
+                "shareByEmailEnabled": False,
+            }
+            if description := inputs.get("description"):
+                body["description"] = description
+            if owner_email := inputs.get("owner_email"):
+                body["ownerIdentityToResolve"] = {"email": owner_email}
+
+            resp = await context.fetch(GRAPH_SITE_PROVISIONING_URL, method="POST", json=body)
+            _check_fetch_success(resp)
+            if resp.status != 202:
+                raise ValueError(f"Expected HTTP 202 for SharePoint site creation, received {resp.status}")
+            location = next((value for key, value in resp.headers.items() if key.lower() == "location"), "")
+            operation = re.fullmatch(
+                re.escape(GRAPH_SITE_PROVISIONING_URL) + r"/getOperationStatus\(operationId='([^']+)'\)",
+                location,
+            )
+            if operation is None:
+                raise ValueError(f"Graph accepted site creation for {web_url} without a usable operation location")
+            return ActionResult(
+                data={"operation_id": urllib.parse.unquote(operation[1]), "web_url": web_url},
+                cost_usd=0.0,
+            )
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@microsoft365.action("get_sharepoint_site_creation_status")
+class GetSharePointSiteCreationStatusAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            operation_id = _encode_path_segment(inputs["operation_id"])
+            resp = await context.fetch(
+                f"{GRAPH_SITE_PROVISIONING_URL}/getOperationStatus(operationId='{operation_id}')"
+            )
+            _check_fetch_success(resp)
+            _check_response(resp.data, "status")
+            return ActionResult(
+                data={
+                    "status": resp.data["status"],
+                    "site_id": resp.data.get("resourceId"),
+                    "error": resp.data.get("error"),
+                },
+                cost_usd=0.0,
+            )
         except Exception as e:
             return ActionError(message=str(e))
 
