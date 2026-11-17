@@ -414,3 +414,61 @@ async def test_exhausted_get_network_error_returns_guidance(mock_context):
     assert result.type == ResultType.ACTION_ERROR
     assert "Check your connection" in result.result.message
     assert "private connection details" not in result.result.message
+
+
+async def test_exclude_dnc_access_denied_keeps_user_filter(mock_context):
+    inputs = {"filters": {"contacts": {"include": {"departments": ["Sales"]}}}, "options": {"excludeDnc": True}}
+    mock_context.fetch.side_effect = HTTPError(403, "Forbidden", {})
+    result = await lusha.execute_action("prospect_contacts", inputs, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "excludeDnc" in result.result.message
+    assert "does not remove" in result.result.message
+    mock_context.fetch.assert_awaited_once()
+    assert mock_context.fetch.call_args.kwargs["json"]["options"]["excludeDnc"] is True
+
+
+@pytest.mark.parametrize(
+    "action,inputs",
+    [
+        ("enrich_contacts", {"ids": ["contact-1"]}),
+        ("search_and_enrich_contacts", {"contacts": [{"id": "contact-1"}]}),
+    ],
+)
+@pytest.mark.parametrize("reason_at_root", [True, False])
+async def test_waterfall_plan_restriction_preserves_partial_results_without_fallback(
+    mock_context, action, inputs, reason_at_root
+):
+    data = {
+        "results": [{"id": "contact-1", "emails": [], "phones": []}],
+        "status": "partial",
+        "billing": {"creditsCharged": 1},
+    }
+    target = data if reason_at_root else data["results"][0]
+    target["statusReason"] = "WATERFALL_NOT_IN_PLAN"
+    original_data = copy.deepcopy(data)
+    mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=data)
+    result = await lusha.execute_action(action, inputs, mock_context)
+    assert result.type == ResultType.ACTION
+    output = result.result.data
+    assert {key: value for key, value in output.items() if key != "warnings"} == original_data
+    assert "waterfallEnabled=false" in output["warnings"][0]
+    assert "Additional calls can spend credits" in output["warnings"][0]
+    assert data == original_data
+    mock_context.fetch.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    "action,inputs",
+    [
+        ("search_contacts", {"contacts": [{"id": "restricted-contact"}]}),
+        ("enrich_contacts", {"ids": ["restricted-contact"]}),
+        ("search_and_enrich_contacts", {"contacts": [{"id": "restricted-contact"}]}),
+    ],
+)
+async def test_compliance_restriction_is_preserved_without_retry(mock_context, action, inputs):
+    data = {"results": [{"error": {"code": "COMPLIANCE_RESTRICTED", "message": "Restricted contact"}}]}
+    mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=data)
+    result = await lusha.execute_action(action, inputs, mock_context)
+    assert result.type == ResultType.ACTION
+    assert result.result.data == data
+    mock_context.fetch.assert_awaited_once()

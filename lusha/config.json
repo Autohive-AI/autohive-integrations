@@ -232,6 +232,13 @@
                                 "type": "string"
                             }
                         }
+                    },
+                    "warnings": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Integration guidance when the provider reports WATERFALL_NOT_IN_PLAN. Partial provider data is preserved; no automatic fallback requests are made."
                     }
                 },
                 "required": [
@@ -241,7 +248,7 @@
         },
         "search_and_enrich_contacts": {
             "display_name": "Search and Enrich Contacts",
-            "description": "Find 1-100 contacts by identifiers and reveal full profiles in one call. Search and reveal charges both apply.",
+            "description": "Find 1-100 contacts by identifiers and reveal full profiles in one call. Search and reveal charges both apply. May return incomplete data when Waterfall is unavailable on the account. For Lusha-only enrichment, use search_contacts then enrich_contacts with waterfallEnabled=false.",
             "input_schema": {
                 "type": "object",
                 "required": [
@@ -367,6 +374,13 @@
                     "statusReason": {
                         "type": "string",
                         "description": "Provider reason for unavailable enrichment fields."
+                    },
+                    "warnings": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Integration guidance when the provider reports WATERFALL_NOT_IN_PLAN. Partial provider data is preserved; no automatic fallback requests are made."
                     }
                 },
                 "required": [
@@ -1357,7 +1371,8 @@
                                 "default": true
                             },
                             "excludeDnc": {
-                                "type": "boolean"
+                                "type": "boolean",
+                                "description": "Exclude contacts whose phones are all Do Not Call. Some accounts reject this option with HTTP 403; omit it only if appropriate for your workflow. Never removed automatically."
                             },
                             "maxContactsPerCompany": {
                                 "type": "integer",

@@ -44,6 +44,16 @@ async def request(
     except RateLimitError as exc:
         return ActionError(message=f"Lusha rate limit exceeded. Retry after {exc.retry_after} seconds.")
     except HTTPError as exc:
+        if (
+            exc.status == 403
+            and path == "contacts/prospecting"
+            and (payload or {}).get("options", {}).get("excludeDnc")
+        ):
+            return ActionError(
+                message="Lusha denied contact prospecting with excludeDnc enabled. Check your account's access to "
+                "this option with Lusha support. You can omit excludeDnc only if an unfiltered DNC result set is "
+                "acceptable for your workflow; this integration does not remove the filter automatically."
+            )
         messages = {
             400: "Lusha rejected the request. Check identifiers, filter values and supported filter combinations.",
             401: "Lusha authentication failed. Check your API key and whether API access is enabled for your user.",
@@ -63,6 +73,16 @@ async def request(
         return ActionError(message="Could not reach Lusha. Check your connection and try again later.")
     if not isinstance(response.data, dict):
         return ActionError(message="Lusha returned an unexpected response; expected a JSON object.")
+    if path in {"contacts/enrich", "contacts/search-and-enrich"}:
+        records = [response.data, *response.data.get("results", [])]
+        if any(record.get("statusReason") == "WATERFALL_NOT_IN_PLAN" for record in records):
+            data = dict(response.data)
+            data["warnings"] = [
+                "Lusha returned incomplete enrichment because Waterfall is not included in this account's plan. "
+                "Keep the returned data and inspect each requested field. For Lusha-only enrichment, use "
+                "search_contacts then enrich_contacts with waterfallEnabled=false. Additional calls can spend credits."
+            ]
+            return ActionResult(data=data)
     return ActionResult(data=response.data)
 
 

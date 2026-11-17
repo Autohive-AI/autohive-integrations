@@ -86,11 +86,11 @@ Contact prospecting accepts `filters.contacts` and/or `filters.companies`, each 
   },
   "page": 0,
   "size": 25,
-  "options": {"includePartialProfiles": true, "excludeDnc": true, "maxContactsPerCompany": 2}
+  "options": {"includePartialProfiles": true, "maxContactsPerCompany": 2}
 }
 ```
 
-`excludeDnc` and `maxContactsPerCompany` (1-20) are contact-only options. The latter limits contacts per company, independently of page size.
+`excludeDnc` and `maxContactsPerCompany` (1-20) are contact-only options. Live testing found that the account rejected `excludeDnc: true` with HTTP 403 while the same request without it succeeded. Its availability should be checked with Lusha support; the integration never removes it automatically. Omit it only if the resulting DNC behavior is suitable for your workflow. The latter limits contacts per company, independently of page size.
 
 Company prospecting requires `filters.companies.include`; `exclude` is optional:
 
@@ -117,6 +117,14 @@ Search, enrichment and prospecting actions return Lusha's response object direct
 Search/prospecting and enrichment can spend Lusha credits. Search-and-enrich can incur both search and reveal charges. `billing.creditsCharged` records provider credits, not USD; this integration does not claim a USD cost or enable Autohive billing. Use `get_account_usage` to inspect current plan pricing and balances rather than assuming fixed prices.
 
 `list_filter_types` returns `availableFilters` and optional catalog metadata. `get_filter_values` returns provider `values`, with optional `total` and `truncated`. `get_account_usage` returns `credits`, `rateLimits`, `plan` and `pricing` when provided by Lusha.
+
+### Account restrictions and incomplete enrichment
+
+A successful HTTP response does not guarantee every requested email or phone was returned. `WATERFALL_NOT_IN_PLAN` identifies a plan restriction; the integration preserves the partial response and adds `warnings` explaining the limitation. Live testing found a combined search-and-enrich request missing an email that standalone enrichment returned. The combined endpoint does not accept `waterfallEnabled`; use `search_contacts` and then `enrich_contacts` with `waterfallEnabled: false` when you need Lusha-only data. This is an explicit workflow choice, not an automatic fallback that could spend more credits. It does not guarantee that Lusha has every requested field.
+
+`COMPLIANCE_RESTRICTED` is a provider restriction on an individual contact, not evidence that the whole action is broken. Preserve the per-record error and do not retry it through another endpoint to bypass the restriction. A different permitted test contact can be used for further validation.
+
+The enrichment-job action remains unverified against a live account: the tested plan has no Waterfall entitlement and returned no job ID. Never invent a job ID or treat absence of a job as a pending result.
 
 ### Delayed contact waterfall results
 
