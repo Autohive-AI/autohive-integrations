@@ -2650,6 +2650,56 @@
         ]
       }
     },
+    "create_sharepoint_folder": {
+      "display_name": "Create SharePoint Folder",
+      "description": "Create a folder in a SharePoint document library or an existing folder. Fails if the name is already in use.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "drive_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The library ID from List SharePoint Document Libraries"
+          },
+          "name": {
+            "type": "string",
+            "pattern": "^[^/\\\\]*[^/\\\\\\s][^/\\\\]*$",
+            "description": "Name of the new folder"
+          },
+          "parent_folder_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional parent folder ID from List SharePoint Folder Contents. Defaults to the library root."
+          }
+        },
+        "required": [
+          "drive_id",
+          "name"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The new folder ID"
+          },
+          "name": {
+            "type": "string",
+            "description": "The new folder name"
+          },
+          "webUrl": {
+            "type": "string",
+            "description": "Web URL to open the folder"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "webUrl"
+        ]
+      }
+    },
     "list_sharepoint_folder_contents": {
       "display_name": "List SharePoint Folder Contents",
       "description": "List files and folders within a SharePoint document library or folder. Use without folder_id to list root contents, or with folder_id to browse into subfolders.",

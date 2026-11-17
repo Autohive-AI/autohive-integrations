@@ -1,7 +1,7 @@
 """Live Microsoft Graph integration tests for all Microsoft 365 actions.
 
 Read-only tests require ``MICROSOFT365_ACCESS_TOKEN``. Tests marked
-``destructive`` create and clean up their own mail, calendar, or OneDrive data
+``destructive`` create and clean up their own mail, calendar, OneDrive, or SharePoint data
 and must be explicitly selected with ``-m "integration and destructive"``.
 Mail tests require ``MICROSOFT365_TEST_MAILBOX_EMAIL`` to be the authenticated
 mailbox because they deliver to and clean up messages through ``/me``.
@@ -12,6 +12,7 @@ import base64
 import os
 import sys
 import time
+from uuid import uuid4
 from unittest.mock import AsyncMock, MagicMock
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
@@ -28,6 +29,7 @@ CRED = os.getenv("MICROSOFT365_ACCESS_TOKEN", "")
 TEST_MAILBOX = os.getenv("MICROSOFT365_TEST_MAILBOX_EMAIL", "")
 TEST_ATTENDEE = os.getenv("MICROSOFT365_TEST_ATTENDEE_EMAIL", "")
 TEST_SCHEDULE_EMAIL = os.getenv("MICROSOFT365_TEST_SCHEDULE_EMAIL", "")
+TEST_SHAREPOINT_DRIVE_ID = os.getenv("MICROSOFT365_TEST_SHAREPOINT_DRIVE_ID", "")
 TEST_SHAREPOINT_SITE_ID = os.getenv("MICROSOFT365_TEST_SHAREPOINT_SITE_ID", "")
 TEST_RUN_ID = str(int(time.time() * 1000))
 TEST_DRAFT_SUBJECT = f"[Autohive Integration Test {TEST_RUN_ID}] Draft"
@@ -788,6 +790,43 @@ async def test_search_sharepoint_documents_live(live_context):
     if data["files"]:
         _state["sharepoint_file_id"] = data["files"][0]["id"]
         _state["sharepoint_file_drive_id"] = data["files"][0].get("drive_id", "")
+
+
+@skip_if_no_creds
+@pytest.mark.skipif(not TEST_SHAREPOINT_DRIVE_ID, reason="MICROSOFT365_TEST_SHAREPOINT_DRIVE_ID required")
+@pytest.mark.destructive
+@pytest.mark.asyncio
+async def test_upload_sharepoint_file_live(live_context):
+    folder_name = f"autohive-test-{uuid4().hex}"
+    drive_url = f"https://graph.microsoft.com/v1.0/drives/{_encode_path_segment(TEST_SHAREPOINT_DRIVE_ID)}"
+    folder = await microsoft365.execute_action(
+        "create_sharepoint_folder",
+        {"drive_id": TEST_SHAREPOINT_DRIVE_ID, "name": folder_name},
+        live_context,
+    )
+    assert folder.type != ResultType.ACTION_ERROR, getattr(folder.result, "message", folder.result)
+    folder_url = f"{drive_url}/items/{_encode_path_segment(folder.result.data['id'])}"
+
+    try:
+        content = f"Autohive SharePoint upload test {folder_name}"
+        uploaded = await microsoft365.execute_action(
+            "upload_sharepoint_file",
+            {
+                "drive_id": TEST_SHAREPOINT_DRIVE_ID,
+                "folder_path": folder_name,
+                "filename": f"{folder_name}.txt",
+                "content": content,
+            },
+            live_context,
+        )
+        assert uploaded.type != ResultType.ACTION_ERROR, getattr(uploaded.result, "message", uploaded.result)
+        file_id = _encode_path_segment(uploaded.result.data["id"])
+        response = await live_context.fetch(f"{drive_url}/items/{file_id}/content")
+        assert response.status == 200
+        assert response.data == content.encode("utf-8")
+    finally:
+        cleanup = await live_context.fetch(folder_url, method="DELETE")
+        assert cleanup.status == 204, f"SharePoint test folder cleanup returned HTTP {cleanup.status}"
 
 
 @skip_if_no_creds

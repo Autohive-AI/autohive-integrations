@@ -24,7 +24,7 @@ Required Microsoft Graph API permissions:
 - `Sites.Read.All` — Access SharePoint sites and document libraries
 - `Place.Read.All` — List and query meeting rooms and room lists
 
-Version 3.0.0 changes the requested OAuth permissions. Existing connections must reconnect once so Microsoft can grant `Calendars.Read.Shared`.
+Reconnect existing Microsoft 365 connections when upgrading to v4 so Microsoft can grant `Files.ReadWrite.All` for SharePoint uploads and folder creation. Connections upgrading from before v3 also grant `Calendars.Read.Shared` for meeting suggestions.
 
 ## Actions
 
@@ -685,6 +685,16 @@ List all subsites (child sites) under a SharePoint site.
 
 ---
 
+### `create_sharepoint_folder`
+
+Create a folder in a SharePoint document library. The connected user needs permission to add folders. The action fails if the name is already in use in the destination.
+
+- `drive_id` (required) is the library ID from `list_sharepoint_libraries`.
+- `name` (required) is the new folder name.
+- `parent_folder_id` is the optional ID of an existing parent folder from `list_sharepoint_folder_contents`. Omit it to create the folder at the library root.
+
+Returns the new folder's `id`, `name`, and `webUrl`. To upload into it, pass its path relative to the library root as `folder_path` in `upload_sharepoint_file`.
+
 ### `list_sharepoint_folder_contents`
 
 List files and folders within a SharePoint document library or subfolder. Use without `folder_id` to list root contents, or with `folder_id` to browse into subfolders.
@@ -835,6 +845,7 @@ export MICROSOFT365_ACCESS_TOKEN="<your-access-token>"
 export MICROSOFT365_TEST_MAILBOX_EMAIL="you@example.com"    # authenticated mailbox; required for mail tests
 export MICROSOFT365_TEST_ATTENDEE_EMAIL="you@example.com"    # required for find_meeting_times
 export MICROSOFT365_TEST_SCHEDULE_EMAIL="you@tenant.onmicrosoft.com"  # required for get_schedule
+export MICROSOFT365_TEST_SHAREPOINT_DRIVE_ID="<writable-test-library-id>"  # required for the SharePoint write test
 export MICROSOFT365_TEST_SHAREPOINT_SITE_ID="tenant.sharepoint.com,site-collection-id,site-id"  # optional stable test site
 python -m pytest tests/test_microsoft365_integration.py -v -m "integration and destructive"
 ```
@@ -847,5 +858,7 @@ and optional test variables as blank entries; keep real values in local `.env`.
 
 Obtain a valid access token with the scopes in `config.json` through the Autohive
 platform OAuth flow. Refresh expired access tokens through the same flow.
+
+The SharePoint write test creates a uniquely named folder in the configured test library, uploads and downloads a file to verify its bytes, and removes the test folder and its file.
 
 A separate destructive live test creates a new draft with a binary attachment, verifies the saved bytes, and deletes the unsent draft without sending it.

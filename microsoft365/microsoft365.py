@@ -2357,6 +2357,29 @@ class ListSharePointSubsitesAction(ActionHandler):
             return ActionError(message=str(e))
 
 
+@microsoft365.action("create_sharepoint_folder")
+class CreateSharePointFolderAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            drive_id = _encode_path_segment(inputs["drive_id"])
+            name = inputs["name"]
+            parent_id = inputs.get("parent_folder_id")
+            parent = f"items/{_encode_path_segment(parent_id)}" if parent_id else "root"
+            resp = await context.fetch(
+                f"{GRAPH_API_BASE}/drives/{drive_id}/{parent}/children",
+                method="POST",
+                json={"name": name, "folder": {}, "@microsoft.graph.conflictBehavior": "fail"},
+            )
+            _check_fetch_success(resp)
+            _check_response(resp.data, "id", "name", "webUrl")
+            return ActionResult(
+                data={"id": resp.data["id"], "name": resp.data["name"], "webUrl": resp.data["webUrl"]},
+                cost_usd=0.0,
+            )
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
 @microsoft365.action("list_sharepoint_folder_contents")
 class ListSharePointFolderContentsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:

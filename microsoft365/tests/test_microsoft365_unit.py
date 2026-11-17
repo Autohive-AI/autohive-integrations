@@ -186,6 +186,26 @@ async def test_upload_sharepoint_file_requires_library_id(mock_context):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("parent_id,endpoint", [(None, "root"), ("parent#1", "items/parent%231")])
+async def test_create_sharepoint_folder(mock_context, parent_id, endpoint):
+    response = {"id": "folder1", "name": "Reports", "webUrl": "https://example.sharepoint.com/Reports"}
+    mock_context.fetch = make_fetch(response)
+    inputs = {"drive_id": "b!library", "name": "Reports"}
+    if parent_id:
+        inputs["parent_folder_id"] = parent_id
+
+    result = await microsoft365.execute_action("create_sharepoint_folder", inputs, mock_context)
+
+    assert result.type != ResultType.ACTION_ERROR
+    assert result.result.data == response
+    mock_context.fetch.assert_awaited_once_with(
+        f"https://graph.microsoft.com/v1.0/drives/b%21library/{endpoint}/children",
+        method="POST",
+        json={"name": "Reports", "folder": {}, "@microsoft.graph.conflictBehavior": "fail"},
+    )
+
+
+@pytest.mark.asyncio
 async def test_upload_file_uses_folder_path_and_encodes_name(mock_context):
     mock_context.fetch = make_fetch({"id": "file1", "webUrl": "https://onedrive.com/f1", "size": 100})
     inputs = make_file_input(name="my report.txt") | {"folder_path": "/Reports/2026"}
