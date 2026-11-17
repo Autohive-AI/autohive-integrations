@@ -151,12 +151,23 @@ class SearchAndEnrichCompaniesAction(ActionHandler):
         return await request(context, "companies/search-and-enrich", payload=payload)
 
 
+def has_filter_criteria(value: Any) -> bool:
+    """Require a populated criterion; modifiers and empty containers do not narrow a search."""
+    if isinstance(value, dict):
+        return any(has_filter_criteria(item) for key, item in value.items() if key != "technologiesCondition")
+    if isinstance(value, list):
+        return any(has_filter_criteria(item) for item in value)
+    if isinstance(value, str):
+        return bool(value.strip())
+    return value is not None
+
+
 @lusha.action("prospect_contacts")
 class ProspectContactsAction(ActionHandler):
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
         filters = inputs["filters"]
-        if not filters:
-            return ActionError(message="Provide contact or company prospecting filters.")
+        if not has_filter_criteria(filters):
+            return ActionError(message="Provide at least one non-empty include or exclude prospecting criterion.")
         payload = {"filters": filters, "pagination": {"page": inputs.get("page", 0), "size": inputs.get("size", 25)}}
         if "options" in inputs:
             payload["options"] = inputs.get("options")
@@ -166,8 +177,11 @@ class ProspectContactsAction(ActionHandler):
 @lusha.action("prospect_companies")
 class ProspectCompaniesAction(ActionHandler):
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
+        filters = inputs["filters"]
+        if not has_filter_criteria(filters):
+            return ActionError(message="Provide at least one non-empty include or exclude prospecting criterion.")
         payload = {
-            "filters": inputs["filters"],
+            "filters": filters,
             "pagination": {"page": inputs.get("page", 0), "size": inputs.get("size", 25)},
         }
         if "options" in inputs:

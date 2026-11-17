@@ -74,6 +74,8 @@ First call `list_filter_types` with `entity: "contacts"` or `"companies"`, then 
 
 Both prospecting actions accept `page` (zero-based, 0-1000, default 0), `size` (10-100, default 25), and `options.includePartialProfiles`.
 
+At least one include or exclude criterion must contain a value. Empty groups, empty lists, empty location/range objects, and `technologiesCondition` alone are rejected before making a credit-consuming request. A numeric range boundary of zero remains valid.
+
 Contact prospecting accepts `filters.contacts` and/or `filters.companies`, each with `include` and `exclude` objects. Contact fields include `names`, `ids`, `jobTitles`, `countries`, `locations`, `seniorityIds`, `departments` and `existingDataPoints`. Use the filter lookup actions for Lusha's accepted IDs and values.
 
 ```json

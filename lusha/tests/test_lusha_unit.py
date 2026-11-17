@@ -314,3 +314,51 @@ async def test_empty_key_guard_for_direct_helper_calls(mock_context):
     result = await request(mock_context, "account/usage", method="GET")
     assert "non-empty" in result.message
     mock_context.fetch.assert_not_awaited()
+
+
+@pytest.mark.parametrize("entity", ["contacts", "companies"])
+@pytest.mark.parametrize(
+    "group",
+    [
+        {},
+        {"include": {}},
+        {"include": {}, "exclude": {}},
+        {"include": {"names": []}},
+        {"include": {"locations": [{}]}},
+        {"include": {"sizes": [{}]}},
+        {"include": {"technologiesCondition": "or"}},
+        {"include": {}, "exclude": {"domains": []}},
+    ],
+)
+async def test_empty_nested_prospecting_filters_do_not_spend_credits(mock_context, entity, group):
+    filters = {"companies": group}
+    result = await lusha.execute_action(f"prospect_{entity}", {"filters": filters}, mock_context)
+    assert result.type in (ResultType.ACTION_ERROR, ResultType.VALIDATION_ERROR)
+    mock_context.fetch.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "group", [{}, {"include": {}}, {"exclude": {"jobTitles": []}}, {"include": {"locations": [{}]}}]
+)
+async def test_empty_contact_filter_groups_do_not_spend_credits(mock_context, group):
+    result = await lusha.execute_action("prospect_contacts", {"filters": {"contacts": group}}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    mock_context.fetch.assert_not_awaited()
+
+
+@pytest.mark.parametrize("entity", ["contacts", "companies"])
+@pytest.mark.parametrize(
+    "group",
+    [
+        {"include": {"sizes": [{"min": 0}]}},
+        {"include": {}, "exclude": {"domains": ["example.com"]}},
+        {"include": {"technologies": ["Example"], "technologiesCondition": "or"}},
+    ],
+)
+async def test_populated_prospecting_criteria_preserve_zero_and_exclusions(mock_context, entity, group):
+    mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+    inputs = {"filters": {"companies": group}}
+    result = await lusha.execute_action(f"prospect_{entity}", inputs, mock_context)
+    assert result.type == ResultType.ACTION
+    mock_context.fetch.assert_awaited_once()
+    assert mock_context.fetch.call_args.kwargs["json"]["filters"] == inputs["filters"]
