@@ -15,12 +15,9 @@ async def test_search_contacts(live_context, contact_identifier, check_live_reco
 
 
 async def test_enrich_contacts(live_context, contact_identifier, check_live_records):
-    # Resolve the fixture ID only when the supplied identifier is an email.
-    contact_id = contact_identifier.get("id")
-    if not contact_id:
-        search = await lusha.execute_action("search_contacts", {"contacts": [contact_identifier]}, live_context)
-        _, records = check_live_records(search)
-        contact_id = records[0]["id"]
+    search = await lusha.execute_action("search_contacts", {"contacts": [contact_identifier]}, live_context)
+    _, previews = check_live_records(search)
+    contact_id = previews[0]["id"]
     result = await lusha.execute_action(
         "enrich_contacts", {"ids": [contact_id], "reveal": ["emails"], "waterfallEnabled": False}, live_context
     )

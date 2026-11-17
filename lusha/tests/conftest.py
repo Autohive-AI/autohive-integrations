@@ -39,9 +39,12 @@ def contact_identifier(env_credentials, paid_live_tests):
     email = env_credentials("LUSHA_TEST_CONTACT_EMAIL")
     if contact_id:
         return {"id": contact_id}
-    if email:
+    elif email:
         return {"email": email}
-    pytest.skip("Configure a permitted dedicated-test contact using LUSHA_TEST_CONTACT_ID or LUSHA_TEST_CONTACT_EMAIL")
+    else:
+        pytest.skip(
+            "Configure a permitted dedicated-test contact using LUSHA_TEST_CONTACT_ID or LUSHA_TEST_CONTACT_EMAIL"
+        )
 
 
 @pytest.fixture
@@ -61,6 +64,10 @@ def check_live_records():
             "Lusha did not return an action result; inspect provider access and inputs"
         )
         data = result.result.data
+        assert isinstance(data.get("requestId"), str), "Expected request correlation ID"
+        assert isinstance(data["billing"]["creditsCharged"], (int, float)), "Expected provider credit usage"
+        assert data["billing"]["creditsCharged"] >= 0
+        assert isinstance(data["billing"]["resultsReturned"], int), "Expected successful result count"
         records = data.get("results")
         assert isinstance(records, list), "Expected a results array"
         assert bool(records), "The configured test input returned no records"

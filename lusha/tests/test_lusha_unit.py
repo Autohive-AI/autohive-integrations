@@ -33,16 +33,73 @@ CASES = [
 
 def response_for(action):
     if action == "list_filter_types":
-        return {"availableFilters": [{"filterType": "locations", "requiresQuery": True}]}
+        return {
+            "availableFilters": [{"filterType": "locations", "requiresQuery": True}],
+            "filters": [
+                {
+                    "path": "filters.contacts.include.locations",
+                    "type": "object[]",
+                    "valueSource": "lookup",
+                    "lookup": {"filterType": "locations", "requiresQuery": True},
+                }
+            ],
+            "generatedAt": "2026-11-17T00:00:00Z",
+        }
     if action == "get_filter_values":
         return {"values": [{"min": 10, "max": 50}], "total": 1, "truncated": False}
     if action == "get_account_usage":
-        return {"credits": {"total": 100, "used": 25, "remaining": 75}, "plan": {"category": "test"}}
+        return {
+            "credits": {"total": 100, "used": 25, "remaining": 75},
+            "plan": {"category": "test", "renewalType": "annual"},
+            "rateLimits": {"minute": {"limit": 25, "used": 1, "remaining": 24}, "hourly": None},
+            "pricing": {"revealEmail": {"credits": 1, "perQuantity": 1}},
+        }
     if action == "get_contact_enrichment_job":
-        return {"jobId": "wf_example", "status": "processing", "retryAfter": 5, "covers": []}
+        return {
+            "jobId": "wf_example",
+            "status": "processing",
+            "requestId": "request-example",
+            "expiresAt": "2026-11-17T01:00:00Z",
+            "retryAfter": 5,
+            "covers": [{"contactId": "contact-1", "dataPoints": ["phone"]}],
+        }
+    company = {
+        "id": "company-1",
+        "name": "Example Company",
+        "domain": "example.com",
+        "industry": "Software",
+        "location": {"country": "New Zealand"},
+    }
+    if action.endswith("contacts"):
+        record = {
+            "id": "contact-1",
+            "firstName": "Alex",
+            "lastName": "Example",
+            "jobTitle": {"title": "Director", "departments": ["Sales"], "seniority": "Director"},
+            "company": company,
+            "socialLinks": {"linkedin": "https://www.linkedin.com/in/example"},
+        }
+        if action.startswith(("enrich_", "search_and_enrich_")):
+            record.update(
+                emails=[{"email": "person@example.com", "type": "work", "confidence": None}],
+                phones=[{"number": "+12025550123", "type": "work", "doNotCall": False}],
+            )
+        else:
+            record.update(has=["emails", "phones"], canReveal=[{"field": "emails", "credits": 1}])
+    else:
+        record = company
+        if action.startswith(("enrich_", "search_and_enrich_")):
+            record.update(
+                employeeCount={"exact": 100, "min": 51, "max": 200},
+                revenueRange={"min": 1000000, "max": 5000000},
+                technologies=["Example CRM"],
+            )
+        else:
+            record.update(has=["name", "domain"], canReveal=[{"field": "competitors", "credits": 1}])
+    record["futureProviderField"] = {"retained": True}
     data = {
         "requestId": "request-example",
-        "results": [{"id": "record-1"}],
+        "results": [record],
         "billing": {"creditsCharged": 1, "resultsReturned": 1},
     }
     if action.startswith("prospect_"):
@@ -272,6 +329,8 @@ async def test_partial_failure_and_async_job_metadata_survive(mock_context):
 async def test_job_states_are_returned_without_polling_or_merging(mock_context, status):
     data = {
         "jobId": "wf_example",
+        "requestId": "request-example",
+        "expiresAt": "2026-11-17T01:00:00Z",
         "status": status,
         "contacts": [{"id": "contact-1", "phones": []}],
         "creditsCharged": 2,

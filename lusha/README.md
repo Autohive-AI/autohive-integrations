@@ -108,13 +108,13 @@ Company prospecting requires `filters.companies.include`; `exclude` is optional:
 
 Company filters supported in both prospecting actions include `names`, `domains`, `ids`, `locations`, `sizes`, `revenues`, `technologies`, `technologiesCondition` (`or`/`and`), `mainIndustriesIds`, `subIndustriesIds`, `sicCodes`, `naicsCodes`, `businessModel`, `companyType`, `linkedinUrls`, `keywords` and `foundedYear`. Location entries accept the fields declared in `config.json`; ranges use `min`/`max`. This release deliberately exposes common ICP filters rather than every advanced provider filter.
 
-Each call fetches exactly one page. Use returned `pagination.page`, `size`, `total` and, when present, `totalGuaranteed`/`totalDescription` to decide whether another page is needed. A non-guaranteed total is not an exact count. Enrich only the chosen IDs to control credit spending.
+Each call fetches exactly one page. The response may report the actual returned `pagination.size`, which can be smaller than the requested size (for example, one matching company for a request capped at ten). Use returned `pagination.page`, `size`, `total` and, when present, `totalGuaranteed`/`totalDescription` to decide whether another page is needed. A non-guaranteed total is not an exact count. Enrich only the chosen IDs to control credit spending.
 
 ### Responses, credits and partial failures
 
 Search, enrichment and prospecting actions return Lusha's response object directly, including `requestId`, `results`, `billing` and optional pagination, availability, status and job fields. Records retain their nested data, `clientReferenceId`, `has`, `canReveal`, and individual `error` objects when returned. An HTTP-successful batch can contain failed records; inspect each result before continuing a workflow.
 
-Search/prospecting and enrichment can spend Lusha credits. Search-and-enrich can incur both search and reveal charges. `billing.creditsCharged` records provider credits, not USD; this integration does not claim a USD cost or enable Autohive billing. Use `get_account_usage` to inspect current plan pricing and balances rather than assuming fixed prices.
+Search/prospecting and enrichment can spend Lusha credits. Search-and-enrich can incur both search and reveal charges. `billing.creditsCharged` records provider credits, not USD; users must maintain sufficient credits in their own Lusha account. These credits are returned in action data and are **not included in Autohive execution-cost tracking**. This integration does not claim a USD cost or enable Autohive billing because provider credit pricing is account-dependent; enabling USD reporting requires an agreed, reliable conversion. Use `get_account_usage` to inspect current plan pricing and balances rather than assuming fixed prices.
 
 `list_filter_types` returns `availableFilters` and optional catalog metadata. `get_filter_values` returns provider `values`, with optional `total` and `truncated`. `get_account_usage` returns `credits`, `rateLimits`, `plan` and `pricing` when provided by Lusha.
 
@@ -169,15 +169,17 @@ Live tests use the real SDK HTTP client and cover all 12 actions across five fil
 | `tests/test_lusha_prospecting_integration.py` | Both prospecting actions, plus a separate optional DNC-filter check |
 | `tests/test_lusha_filters_integration.py` | Filter type discovery and value lookup for both entity types |
 
-Set `LUSHA_API_KEY` in local `.env` to run account and filter checks. Explicitly set `LUSHA_RUN_PAID_TESTS=1` to authorize credit-consuming tests, and provide `LUSHA_TEST_COMPANY_DOMAIN`. Contact tests require `LUSHA_TEST_CONTACT_ID` or `LUSHA_TEST_CONTACT_EMAIL` for a permitted dedicated-test contact with a known available work email. Supplying only an email causes one extra search to resolve its ID for standalone enrichment. No contact fixtures are hardcoded into the public repository.
+Set `LUSHA_API_KEY` in local `.env` to run account and filter checks. Explicitly set `LUSHA_RUN_PAID_TESTS=1` to authorize credit-consuming tests, and provide `LUSHA_TEST_COMPANY_DOMAIN`. Contact tests require `LUSHA_TEST_CONTACT_ID` or `LUSHA_TEST_CONTACT_EMAIL` for a permitted dedicated-test contact with a known available work email. Standalone contact enrichment always searches the supplied identifier first, then passes the returned ID to enrichment. No contact fixtures are hardcoded into the public repository.
 
 `LUSHA_TEST_ENRICHMENT_JOB_ID` must be a real, unexpired job from the same account. Job tests skip when it is absent. Compliance-restricted contacts, unsupported DNC access, and a combined enrichment result blocked by `WATERFALL_NOT_IN_PLAN` are reported as explicit skips, not successful live verification. Missing emails without that known plan restriction fail the corresponding test.
 
-All variables have blank templates in root `.env.example`. The suite collects 15 live cases, including entity variants; default unit-test runs do not collect them.
+All variables have blank templates in root `.env.example`. The suite collects 15 live cases, including entity variants; default unit-test runs do not collect them. Both prospecting cases now execute filter discovery, fetch valid values, and pass those values into the bounded prospecting request. Contact prospecting uses discovered seniority IDs; company prospecting uses discovered employee-count ranges. The company enrichment case always chains search to enrichment; the contact case also always chains search to enrichment, whether the supplied identifier is an ID or email.
 
 ```powershell
 python -m pytest lusha/tests -o python_files=test_*_integration.py -m "integration and not destructive" -v
 ```
+
+When all fixtures are supplied, a full run makes eleven paid POSTs, plus the free/read-only lookups and job check. Each prospecting request is capped at ten results. Search/enrichment uses one record per request, requests contact emails only, and does not request company premium reveal fields. Actual credit charges depend on the account and returned data.
 
 TeamCity reads `tests/teamcity.env`, not local `.env`. The committed `LUSHA_API_KEY=ah:customAuth:api_key` marker resolves the dedicated test connection for **Lusha API Key**; the actual key stays outside Git. The file enables paid tests against the public `lusha.com` domain. Before running the suite there, connect the dedicated test account and configure a permitted test-contact ID (or provision the email securely with `ah:secret`). The commented job ID is optional and needs a Waterfall-entitled account. Until those fixtures exist, the corresponding scenarios remain skipped or blocked; adding tests cannot supply a missing plan entitlement.
 

@@ -26,6 +26,8 @@ async def test_get_contact_enrichment_job(live_context, env_credentials):
     assert result.type == ResultType.ACTION, "The configured job could not be read; check its account and expiry"
     data = result.result.data
     assert data["jobId"] == job_id
+    assert isinstance(data["requestId"], str)
+    assert isinstance(data["expiresAt"], str)
     assert data["status"] in {"processing", "complete", "expired", "failed"}
     if data["status"] == "processing":
         assert isinstance(data.get("retryAfter"), (int, float))

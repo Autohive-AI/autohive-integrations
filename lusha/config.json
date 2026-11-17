@@ -112,7 +112,135 @@
                     "results": {
                         "type": "array",
                         "items": {
-                            "type": "object"
+                            "type": "object",
+                            "properties": {
+                                "clientReferenceId": {
+                                    "type": "string"
+                                },
+                                "id": {
+                                    "type": "string"
+                                },
+                                "firstName": {
+                                    "type": "string"
+                                },
+                                "lastName": {
+                                    "type": "string"
+                                },
+                                "jobTitle": {
+                                    "type": "object",
+                                    "properties": {
+                                        "title": {
+                                            "type": "string"
+                                        },
+                                        "departments": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "seniority": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "company": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "domain": {
+                                            "type": "string"
+                                        },
+                                        "industry": {
+                                            "type": "string",
+                                            "description": "Company industry"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "location": {
+                                    "type": "object",
+                                    "properties": {
+                                        "country": {
+                                            "type": "string"
+                                        },
+                                        "state": {
+                                            "type": "string"
+                                        },
+                                        "city": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "socialLinks": {
+                                    "type": "object",
+                                    "properties": {
+                                        "linkedin": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "has": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                },
+                                "canReveal": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "description": "Indicates a data type that can be revealed and its credit cost",
+                                        "properties": {
+                                            "field": {
+                                                "type": "string"
+                                            },
+                                            "credits": {
+                                                "type": "integer",
+                                                "description": "Credit cost (0 when already revealed for this account)"
+                                            },
+                                            "source": {
+                                                "type": "string",
+                                                "description": "Where the data for this field comes from"
+                                            },
+                                            "availability": {
+                                                "type": "string",
+                                                "description": "Availability of this field for the contact"
+                                            },
+                                            "vendors": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                },
+                                                "description": "Data vendors that can supply this field"
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                },
+                                "error": {
+                                    "type": "object",
+                                    "description": "Per-item error in a batch response",
+                                    "properties": {
+                                        "code": {
+                                            "type": "string"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                }
+                            },
+                            "additionalProperties": true,
+                            "description": "Provider profile or an error-only record. Fields can be absent when unavailable or restricted."
                         },
                         "description": "Provider records, including per-record error objects and reveal availability when returned."
                     },
@@ -187,7 +315,206 @@
                     "results": {
                         "type": "array",
                         "items": {
-                            "type": "object"
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "firstName": {
+                                    "type": "string"
+                                },
+                                "lastName": {
+                                    "type": "string"
+                                },
+                                "fullName": {
+                                    "type": "string"
+                                },
+                                "jobTitle": {
+                                    "type": "object",
+                                    "properties": {
+                                        "title": {
+                                            "type": "string"
+                                        },
+                                        "departments": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "seniority": {
+                                            "type": "string"
+                                        },
+                                        "startDate": {
+                                            "type": "string",
+                                            "description": "Date the contact started in this role"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "location": {
+                                    "type": "object",
+                                    "properties": {
+                                        "country": {
+                                            "type": "string"
+                                        },
+                                        "countryIso2": {
+                                            "type": "string"
+                                        },
+                                        "state": {
+                                            "type": "string"
+                                        },
+                                        "city": {
+                                            "type": "string"
+                                        },
+                                        "continent": {
+                                            "type": "string"
+                                        },
+                                        "coordinates": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "number"
+                                            },
+                                            "description": "City location coordinates: `[longitude, latitude]` of the city the contact is based in. City-level only - not a street address or neighborhood."
+                                        },
+                                        "isEuContact": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "emails": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "email": {
+                                                "type": "string",
+                                                "format": "email"
+                                            },
+                                            "type": {
+                                                "type": "string"
+                                            },
+                                            "confidence": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ]
+                                            },
+                                            "updateDate": {
+                                                "type": "string",
+                                                "format": "date"
+                                            },
+                                            "dataSource": {
+                                                "type": "string",
+                                                "description": "Where this data point came from. `lusha` for Lusha data, or `<providerId>` when an external Data Waterfall provider delivered it (for example `wiza`). Omitted when the waterfall did not run."
+                                            },
+                                            "credits": {
+                                                "type": "number",
+                                                "description": "Credits charged for this one data point. Present only when an external provider delivered it. Omitted for Lusha-sourced data points."
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                },
+                                "phones": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "number": {
+                                                "type": "string"
+                                            },
+                                            "type": {
+                                                "type": "string"
+                                            },
+                                            "doNotCall": {
+                                                "type": "boolean"
+                                            },
+                                            "updateDate": {
+                                                "type": "string",
+                                                "format": "date"
+                                            },
+                                            "dataSource": {
+                                                "type": "string",
+                                                "description": "Where this data point came from. `lusha` for Lusha data, or `<providerId>` when an external Data Waterfall provider delivered it (for example `wiza`). Omitted when the waterfall did not run."
+                                            },
+                                            "credits": {
+                                                "type": "number",
+                                                "description": "Credits charged for this one data point. Present only when an external provider delivered it. Omitted for Lusha-sourced data points."
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                },
+                                "company": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "domain": {
+                                            "type": "string"
+                                        },
+                                        "industry": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "socialLinks": {
+                                    "type": "object",
+                                    "properties": {
+                                        "linkedin": {
+                                            "type": "string"
+                                        },
+                                        "xUrl": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "error": {
+                                    "type": "object",
+                                    "description": "Per-item error in a batch response",
+                                    "properties": {
+                                        "code": {
+                                            "type": "string"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "missingDataPoints": {
+                                    "type": "array",
+                                    "maxItems": 2,
+                                    "items": {
+                                        "type": "object",
+                                        "description": "A requested data point the waterfall could not resolve. Describes the waterfall as a whole, not a single provider.",
+                                        "properties": {
+                                            "type": {
+                                                "type": "string"
+                                            },
+                                            "status": {
+                                                "type": "string",
+                                                "description": "`NOT_FOUND` - every source was searched and nothing was found.\n`BILLING_FAILED` - the run stopped on credits before the field was fully searched."
+                                            },
+                                            "description": {
+                                                "type": "string",
+                                                "description": "Human-readable text. Do not parse it."
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    },
+                                    "description": "Present when the waterfall ran and at least one requested data point is still unresolved. At most one entry for `email` and one for `phone`."
+                                }
+                            },
+                            "additionalProperties": true,
+                            "description": "Provider profile or an error-only record. Fields can be absent when unavailable or restricted."
                         },
                         "description": "Provider records, including per-record error objects and reveal availability when returned."
                     },
@@ -347,7 +674,210 @@
                     "results": {
                         "type": "array",
                         "items": {
-                            "type": "object"
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "firstName": {
+                                    "type": "string"
+                                },
+                                "lastName": {
+                                    "type": "string"
+                                },
+                                "fullName": {
+                                    "type": "string"
+                                },
+                                "jobTitle": {
+                                    "type": "object",
+                                    "properties": {
+                                        "title": {
+                                            "type": "string"
+                                        },
+                                        "departments": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "seniority": {
+                                            "type": "string"
+                                        },
+                                        "startDate": {
+                                            "type": "string",
+                                            "description": "Date the contact started in this role"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "location": {
+                                    "type": "object",
+                                    "properties": {
+                                        "country": {
+                                            "type": "string"
+                                        },
+                                        "countryIso2": {
+                                            "type": "string"
+                                        },
+                                        "state": {
+                                            "type": "string"
+                                        },
+                                        "city": {
+                                            "type": "string"
+                                        },
+                                        "continent": {
+                                            "type": "string"
+                                        },
+                                        "coordinates": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "number"
+                                            },
+                                            "description": "City location coordinates: `[longitude, latitude]` of the city the contact is based in. City-level only - not a street address or neighborhood."
+                                        },
+                                        "isEuContact": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "emails": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "email": {
+                                                "type": "string",
+                                                "format": "email"
+                                            },
+                                            "type": {
+                                                "type": "string"
+                                            },
+                                            "confidence": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ]
+                                            },
+                                            "updateDate": {
+                                                "type": "string",
+                                                "format": "date"
+                                            },
+                                            "dataSource": {
+                                                "type": "string",
+                                                "description": "Where this data point came from. `lusha` for Lusha data, or `<providerId>` when an external Data Waterfall provider delivered it (for example `wiza`). Omitted when the waterfall did not run."
+                                            },
+                                            "credits": {
+                                                "type": "number",
+                                                "description": "Credits charged for this one data point. Present only when an external provider delivered it. Omitted for Lusha-sourced data points."
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                },
+                                "phones": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "number": {
+                                                "type": "string"
+                                            },
+                                            "type": {
+                                                "type": "string"
+                                            },
+                                            "doNotCall": {
+                                                "type": "boolean"
+                                            },
+                                            "updateDate": {
+                                                "type": "string",
+                                                "format": "date"
+                                            },
+                                            "dataSource": {
+                                                "type": "string",
+                                                "description": "Where this data point came from. `lusha` for Lusha data, or `<providerId>` when an external Data Waterfall provider delivered it (for example `wiza`). Omitted when the waterfall did not run."
+                                            },
+                                            "credits": {
+                                                "type": "number",
+                                                "description": "Credits charged for this one data point. Present only when an external provider delivered it. Omitted for Lusha-sourced data points."
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                },
+                                "company": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "domain": {
+                                            "type": "string"
+                                        },
+                                        "industry": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "socialLinks": {
+                                    "type": "object",
+                                    "properties": {
+                                        "linkedin": {
+                                            "type": "string"
+                                        },
+                                        "xUrl": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "error": {
+                                    "type": "object",
+                                    "description": "Per-item error in a batch response",
+                                    "properties": {
+                                        "code": {
+                                            "type": "string"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "missingDataPoints": {
+                                    "type": "array",
+                                    "maxItems": 2,
+                                    "items": {
+                                        "type": "object",
+                                        "description": "A requested data point the waterfall could not resolve. Describes the waterfall as a whole, not a single provider.",
+                                        "properties": {
+                                            "type": {
+                                                "type": "string"
+                                            },
+                                            "status": {
+                                                "type": "string",
+                                                "description": "`NOT_FOUND` - every source was searched and nothing was found.\n`BILLING_FAILED` - the run stopped on credits before the field was fully searched."
+                                            },
+                                            "description": {
+                                                "type": "string",
+                                                "description": "Human-readable text. Do not parse it."
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    },
+                                    "description": "Present when the waterfall ran and at least one requested data point is still unresolved. At most one entry for `email` and one for `phone`."
+                                },
+                                "clientReferenceId": {
+                                    "type": "string",
+                                    "description": "Caller-supplied batch correlation ID."
+                                }
+                            },
+                            "additionalProperties": true,
+                            "description": "Provider profile or an error-only record. Fields can be absent when unavailable or restricted."
                         },
                         "description": "Provider records, including per-record error objects and reveal availability when returned."
                     },
@@ -453,7 +983,113 @@
                     "results": {
                         "type": "array",
                         "items": {
-                            "type": "object"
+                            "type": "object",
+                            "properties": {
+                                "clientReferenceId": {
+                                    "type": "string"
+                                },
+                                "id": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "domain": {
+                                    "type": "string"
+                                },
+                                "employeeCount": {
+                                    "type": "object",
+                                    "properties": {
+                                        "exact": {
+                                            "type": "integer"
+                                        },
+                                        "min": {
+                                            "type": "integer"
+                                        },
+                                        "max": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "industry": {
+                                    "type": "string"
+                                },
+                                "location": {
+                                    "type": "object",
+                                    "properties": {
+                                        "city": {
+                                            "type": "string"
+                                        },
+                                        "state": {
+                                            "type": "string"
+                                        },
+                                        "stateCode": {
+                                            "type": "string",
+                                            "description": "Free field. ISO/postal state or region code, when available."
+                                        },
+                                        "country": {
+                                            "type": "string"
+                                        },
+                                        "countryIso2": {
+                                            "type": "string"
+                                        },
+                                        "continent": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "socialLinks": {
+                                    "type": "object",
+                                    "properties": {
+                                        "linkedin": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "has": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "description": "Available data points that can be revealed via Enrich Companies. Includes base firmographic fields plus new revealable fields: employeesByDepartment, employeesByLocation, employeesBySeniority, competitors, businessModel, phones, emails, keywords, socialLinks, estimatedAnnualItSpend, monthlyWebsiteTraffic, openJobs, directParent, ultimateParent.\n"
+                                },
+                                "canReveal": {
+                                    "type": "array",
+                                    "description": "Data fields that can be revealed via Enrich Companies, with the credit cost per field. A cost of 0 means the field has already been revealed for this account.\n",
+                                    "items": {
+                                        "type": "object",
+                                        "description": "A company data field that can be revealed via Enrich Companies, and its credit cost",
+                                        "properties": {
+                                            "field": {
+                                                "type": "string"
+                                            },
+                                            "credits": {
+                                                "type": "integer",
+                                                "description": "Credit cost (0 when already revealed for this account)"
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                },
+                                "error": {
+                                    "type": "object",
+                                    "description": "Per-item error in a batch response",
+                                    "properties": {
+                                        "code": {
+                                            "type": "string"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                }
+                            },
+                            "additionalProperties": true,
+                            "description": "Provider profile or an error-only record. Fields can be absent when unavailable or restricted."
                         },
                         "description": "Provider records, including per-record error objects and reveal availability when returned."
                     },
@@ -533,7 +1169,283 @@
                     "results": {
                         "type": "array",
                         "items": {
-                            "type": "object"
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "domain": {
+                                    "type": "string"
+                                },
+                                "description": {
+                                    "type": "string"
+                                },
+                                "employeeCount": {
+                                    "type": "object",
+                                    "properties": {
+                                        "exact": {
+                                            "type": "integer"
+                                        },
+                                        "min": {
+                                            "type": "integer"
+                                        },
+                                        "max": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "industry": {
+                                    "type": "string"
+                                },
+                                "directParent": {
+                                    "type": [
+                                        "object",
+                                        "null"
+                                    ],
+                                    "properties": {
+                                        "lushaCompanyId": {
+                                            "type": "string",
+                                            "description": "Lusha company ID of the parent. Use this with Enrich Companies to look up the parent."
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "domain": {
+                                            "type": "string"
+                                        },
+                                        "hqCountry": {
+                                            "type": "string",
+                                            "description": "Country of the parent's headquarters. Not always present."
+                                        }
+                                    },
+                                    "description": "The company's immediate parent in its ownership tree. Revealed via reveal: [\"directParent\"] on Enrich Companies and Search & Enrich Companies - it is not returned unless requested. Charged 1 credit when non-null. `null` when the company has no known parent (for example, it is independent or is itself the ultimate parent).",
+                                    "additionalProperties": true
+                                },
+                                "ultimateParent": {
+                                    "type": [
+                                        "object",
+                                        "null"
+                                    ],
+                                    "properties": {
+                                        "lushaCompanyId": {
+                                            "type": "string",
+                                            "description": "Lusha company ID of the parent. Use this with Enrich Companies to look up the parent."
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "domain": {
+                                            "type": "string"
+                                        },
+                                        "hqCountry": {
+                                            "type": "string",
+                                            "description": "Country of the parent's headquarters. Not always present."
+                                        }
+                                    },
+                                    "description": "The company at the top of its ownership tree. Revealed via reveal: [\"ultimateParent\"] on Enrich Companies and Search & Enrich Companies - it is not returned unless requested. Charged 1 credit when non-null. For a company with a single level of ownership, this matches `directParent`. `null` when the company has no known parent.",
+                                    "additionalProperties": true
+                                },
+                                "location": {
+                                    "type": "object",
+                                    "properties": {
+                                        "city": {
+                                            "type": "string"
+                                        },
+                                        "state": {
+                                            "type": "string"
+                                        },
+                                        "stateCode": {
+                                            "type": "string",
+                                            "description": "Free field. ISO/postal state or region code, when available."
+                                        },
+                                        "country": {
+                                            "type": "string"
+                                        },
+                                        "countryIso2": {
+                                            "type": "string"
+                                        },
+                                        "continent": {
+                                            "type": "string"
+                                        },
+                                        "zipCode": {
+                                            "type": "string",
+                                            "description": "Postal/ZIP code (present on HQ location when available)"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "socialLinks": {
+                                    "type": "object",
+                                    "properties": {
+                                        "linkedin": {
+                                            "type": "string"
+                                        },
+                                        "facebook": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ],
+                                            "description": "Company Facebook page URL. Included automatically when available - no `reveal` entry needed. Omitted from the response when not available (never returned empty). Free field - no credits charged. Available on all plans.\n"
+                                        },
+                                        "x": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ],
+                                            "description": "Company X (formerly Twitter) profile URL. Included automatically when available - no `reveal` entry needed. Omitted from the response when not available (never returned empty). Free field - no credits charged. Available on all plans.\n"
+                                        },
+                                        "instagram": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            },
+                                            "description": "Company Instagram profile URLs. Included automatically when Lusha holds the data - no `reveal` entry needed, no credit cost. Returned as a list because a company can hold more than one profile on this network; every value Lusha holds is returned. Omitted from the response entirely when no data is available (never returned as `null` or an empty list). Company-level data, contains no personal information, refreshed monthly. Available on all plans.\n"
+                                        },
+                                        "youtube": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            },
+                                            "description": "Company YouTube channel URLs. Included automatically when Lusha holds the data - no `reveal` entry needed, no credit cost. Returned as a list because a company can hold more than one channel on this network (multiple YouTube channels are common); every value Lusha holds is returned. Omitted from the response entirely when no data is available (never returned as `null` or an empty list). Company-level data, contains no personal information, refreshed monthly. Available on all plans.\n"
+                                        },
+                                        "tiktok": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            },
+                                            "description": "Company TikTok profile URLs. Included automatically when Lusha holds the data - no `reveal` entry needed, no credit cost. Returned as a list because a company can hold more than one profile on this network; every value Lusha holds is returned. Omitted from the response entirely when no data is available (never returned as `null` or an empty list). Company-level data, contains no personal information, refreshed monthly. Available on all plans.\n"
+                                        },
+                                        "crunchbase": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            },
+                                            "description": "Crunchbase profile URLs"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "revenueRange": {
+                                    "type": "object",
+                                    "properties": {
+                                        "min": {
+                                            "type": "number"
+                                        },
+                                        "max": {
+                                            "type": "number"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "technologies": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                },
+                                "employeesByDepartment": {
+                                    "type": "array",
+                                    "description": "Breakdown of employees by department. Revealed via `reveal: [\"employeesByDepartment\"]` in Enrich Companies.\n",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "department": {
+                                                "type": "string",
+                                                "description": "Department name"
+                                            },
+                                            "count": {
+                                                "type": "integer",
+                                                "description": "Number of employees in this department"
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                },
+                                "employeesByLocation": {
+                                    "type": "array",
+                                    "description": "Breakdown of employees by country and state. Revealed via `reveal: [\"employeesByLocation\"]` in Enrich Companies.\n",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "country": {
+                                                "type": "string",
+                                                "description": "Country name"
+                                            },
+                                            "state": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
+                                                "description": "State or region (null when not available)"
+                                            },
+                                            "count": {
+                                                "type": "integer",
+                                                "description": "Number of employees in this location"
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                },
+                                "employeesBySeniority": {
+                                    "type": "array",
+                                    "description": "Breakdown of employees by seniority level. Revealed via `reveal: [\"employeesBySeniority\"]` in Enrich Companies.\n",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "seniority": {
+                                                "type": "string",
+                                                "description": "Seniority level"
+                                            },
+                                            "count": {
+                                                "type": "integer",
+                                                "description": "Number of employees at this seniority level"
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                },
+                                "competitors": {
+                                    "type": "array",
+                                    "description": "List of competitor companies. Revealed via `reveal: [\"competitors\"]` in Enrich Companies. Use Enrich Companies with the returned IDs to get full firmographic data on each competitor.\n",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "description": "Lusha company ID of the competitor"
+                                            },
+                                            "name": {
+                                                "type": "string",
+                                                "description": "Company name of the competitor"
+                                            },
+                                            "domain": {
+                                                "type": "string",
+                                                "description": "Primary domain of the competitor"
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                },
+                                "error": {
+                                    "type": "object",
+                                    "description": "Per-item error in a batch response",
+                                    "properties": {
+                                        "code": {
+                                            "type": "string"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                }
+                            },
+                            "additionalProperties": true,
+                            "description": "Provider profile or an error-only record. Fields can be absent when unavailable or restricted."
                         },
                         "description": "Provider records, including per-record error objects and reveal availability when returned."
                     },
@@ -645,7 +1557,287 @@
                     "results": {
                         "type": "array",
                         "items": {
-                            "type": "object"
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "domain": {
+                                    "type": "string"
+                                },
+                                "description": {
+                                    "type": "string"
+                                },
+                                "employeeCount": {
+                                    "type": "object",
+                                    "properties": {
+                                        "exact": {
+                                            "type": "integer"
+                                        },
+                                        "min": {
+                                            "type": "integer"
+                                        },
+                                        "max": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "industry": {
+                                    "type": "string"
+                                },
+                                "directParent": {
+                                    "type": [
+                                        "object",
+                                        "null"
+                                    ],
+                                    "properties": {
+                                        "lushaCompanyId": {
+                                            "type": "string",
+                                            "description": "Lusha company ID of the parent. Use this with Enrich Companies to look up the parent."
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "domain": {
+                                            "type": "string"
+                                        },
+                                        "hqCountry": {
+                                            "type": "string",
+                                            "description": "Country of the parent's headquarters. Not always present."
+                                        }
+                                    },
+                                    "description": "The company's immediate parent in its ownership tree. Revealed via reveal: [\"directParent\"] on Enrich Companies and Search & Enrich Companies - it is not returned unless requested. Charged 1 credit when non-null. `null` when the company has no known parent (for example, it is independent or is itself the ultimate parent).",
+                                    "additionalProperties": true
+                                },
+                                "ultimateParent": {
+                                    "type": [
+                                        "object",
+                                        "null"
+                                    ],
+                                    "properties": {
+                                        "lushaCompanyId": {
+                                            "type": "string",
+                                            "description": "Lusha company ID of the parent. Use this with Enrich Companies to look up the parent."
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "domain": {
+                                            "type": "string"
+                                        },
+                                        "hqCountry": {
+                                            "type": "string",
+                                            "description": "Country of the parent's headquarters. Not always present."
+                                        }
+                                    },
+                                    "description": "The company at the top of its ownership tree. Revealed via reveal: [\"ultimateParent\"] on Enrich Companies and Search & Enrich Companies - it is not returned unless requested. Charged 1 credit when non-null. For a company with a single level of ownership, this matches `directParent`. `null` when the company has no known parent.",
+                                    "additionalProperties": true
+                                },
+                                "location": {
+                                    "type": "object",
+                                    "properties": {
+                                        "city": {
+                                            "type": "string"
+                                        },
+                                        "state": {
+                                            "type": "string"
+                                        },
+                                        "stateCode": {
+                                            "type": "string",
+                                            "description": "Free field. ISO/postal state or region code, when available."
+                                        },
+                                        "country": {
+                                            "type": "string"
+                                        },
+                                        "countryIso2": {
+                                            "type": "string"
+                                        },
+                                        "continent": {
+                                            "type": "string"
+                                        },
+                                        "zipCode": {
+                                            "type": "string",
+                                            "description": "Postal/ZIP code (present on HQ location when available)"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "socialLinks": {
+                                    "type": "object",
+                                    "properties": {
+                                        "linkedin": {
+                                            "type": "string"
+                                        },
+                                        "facebook": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ],
+                                            "description": "Company Facebook page URL. Included automatically when available - no `reveal` entry needed. Omitted from the response when not available (never returned empty). Free field - no credits charged. Available on all plans.\n"
+                                        },
+                                        "x": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ],
+                                            "description": "Company X (formerly Twitter) profile URL. Included automatically when available - no `reveal` entry needed. Omitted from the response when not available (never returned empty). Free field - no credits charged. Available on all plans.\n"
+                                        },
+                                        "instagram": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            },
+                                            "description": "Company Instagram profile URLs. Included automatically when Lusha holds the data - no `reveal` entry needed, no credit cost. Returned as a list because a company can hold more than one profile on this network; every value Lusha holds is returned. Omitted from the response entirely when no data is available (never returned as `null` or an empty list). Company-level data, contains no personal information, refreshed monthly. Available on all plans.\n"
+                                        },
+                                        "youtube": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            },
+                                            "description": "Company YouTube channel URLs. Included automatically when Lusha holds the data - no `reveal` entry needed, no credit cost. Returned as a list because a company can hold more than one channel on this network (multiple YouTube channels are common); every value Lusha holds is returned. Omitted from the response entirely when no data is available (never returned as `null` or an empty list). Company-level data, contains no personal information, refreshed monthly. Available on all plans.\n"
+                                        },
+                                        "tiktok": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            },
+                                            "description": "Company TikTok profile URLs. Included automatically when Lusha holds the data - no `reveal` entry needed, no credit cost. Returned as a list because a company can hold more than one profile on this network; every value Lusha holds is returned. Omitted from the response entirely when no data is available (never returned as `null` or an empty list). Company-level data, contains no personal information, refreshed monthly. Available on all plans.\n"
+                                        },
+                                        "crunchbase": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            },
+                                            "description": "Crunchbase profile URLs"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "revenueRange": {
+                                    "type": "object",
+                                    "properties": {
+                                        "min": {
+                                            "type": "number"
+                                        },
+                                        "max": {
+                                            "type": "number"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "technologies": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                },
+                                "employeesByDepartment": {
+                                    "type": "array",
+                                    "description": "Breakdown of employees by department. Revealed via `reveal: [\"employeesByDepartment\"]` in Enrich Companies.\n",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "department": {
+                                                "type": "string",
+                                                "description": "Department name"
+                                            },
+                                            "count": {
+                                                "type": "integer",
+                                                "description": "Number of employees in this department"
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                },
+                                "employeesByLocation": {
+                                    "type": "array",
+                                    "description": "Breakdown of employees by country and state. Revealed via `reveal: [\"employeesByLocation\"]` in Enrich Companies.\n",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "country": {
+                                                "type": "string",
+                                                "description": "Country name"
+                                            },
+                                            "state": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
+                                                "description": "State or region (null when not available)"
+                                            },
+                                            "count": {
+                                                "type": "integer",
+                                                "description": "Number of employees in this location"
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                },
+                                "employeesBySeniority": {
+                                    "type": "array",
+                                    "description": "Breakdown of employees by seniority level. Revealed via `reveal: [\"employeesBySeniority\"]` in Enrich Companies.\n",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "seniority": {
+                                                "type": "string",
+                                                "description": "Seniority level"
+                                            },
+                                            "count": {
+                                                "type": "integer",
+                                                "description": "Number of employees at this seniority level"
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                },
+                                "competitors": {
+                                    "type": "array",
+                                    "description": "List of competitor companies. Revealed via `reveal: [\"competitors\"]` in Enrich Companies. Use Enrich Companies with the returned IDs to get full firmographic data on each competitor.\n",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "id": {
+                                                "type": "string",
+                                                "description": "Lusha company ID of the competitor"
+                                            },
+                                            "name": {
+                                                "type": "string",
+                                                "description": "Company name of the competitor"
+                                            },
+                                            "domain": {
+                                                "type": "string",
+                                                "description": "Primary domain of the competitor"
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                },
+                                "error": {
+                                    "type": "object",
+                                    "description": "Per-item error in a batch response",
+                                    "properties": {
+                                        "code": {
+                                            "type": "string"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "clientReferenceId": {
+                                    "type": "string",
+                                    "description": "Caller-supplied batch correlation ID."
+                                }
+                            },
+                            "additionalProperties": true,
+                            "description": "Provider profile or an error-only record. Fields can be absent when unavailable or restricted."
                         },
                         "description": "Provider records, including per-record error objects and reveal availability when returned."
                     },
@@ -1399,7 +2591,135 @@
                     "results": {
                         "type": "array",
                         "items": {
-                            "type": "object"
+                            "type": "object",
+                            "properties": {
+                                "clientReferenceId": {
+                                    "type": "string"
+                                },
+                                "id": {
+                                    "type": "string"
+                                },
+                                "firstName": {
+                                    "type": "string"
+                                },
+                                "lastName": {
+                                    "type": "string"
+                                },
+                                "jobTitle": {
+                                    "type": "object",
+                                    "properties": {
+                                        "title": {
+                                            "type": "string"
+                                        },
+                                        "departments": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "seniority": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "company": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "domain": {
+                                            "type": "string"
+                                        },
+                                        "industry": {
+                                            "type": "string",
+                                            "description": "Company industry"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "location": {
+                                    "type": "object",
+                                    "properties": {
+                                        "country": {
+                                            "type": "string"
+                                        },
+                                        "state": {
+                                            "type": "string"
+                                        },
+                                        "city": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "socialLinks": {
+                                    "type": "object",
+                                    "properties": {
+                                        "linkedin": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "has": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                },
+                                "canReveal": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "description": "Indicates a data type that can be revealed and its credit cost",
+                                        "properties": {
+                                            "field": {
+                                                "type": "string"
+                                            },
+                                            "credits": {
+                                                "type": "integer",
+                                                "description": "Credit cost (0 when already revealed for this account)"
+                                            },
+                                            "source": {
+                                                "type": "string",
+                                                "description": "Where the data for this field comes from"
+                                            },
+                                            "availability": {
+                                                "type": "string",
+                                                "description": "Availability of this field for the contact"
+                                            },
+                                            "vendors": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "string"
+                                                },
+                                                "description": "Data vendors that can supply this field"
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                },
+                                "error": {
+                                    "type": "object",
+                                    "description": "Per-item error in a batch response",
+                                    "properties": {
+                                        "code": {
+                                            "type": "string"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                }
+                            },
+                            "additionalProperties": true,
+                            "description": "Provider profile or an error-only record. Fields can be absent when unavailable or restricted."
                         },
                         "description": "Provider records, including per-record error objects and reveal availability when returned."
                     },
@@ -1947,7 +3267,113 @@
                     "results": {
                         "type": "array",
                         "items": {
-                            "type": "object"
+                            "type": "object",
+                            "properties": {
+                                "clientReferenceId": {
+                                    "type": "string"
+                                },
+                                "id": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "domain": {
+                                    "type": "string"
+                                },
+                                "employeeCount": {
+                                    "type": "object",
+                                    "properties": {
+                                        "exact": {
+                                            "type": "integer"
+                                        },
+                                        "min": {
+                                            "type": "integer"
+                                        },
+                                        "max": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "industry": {
+                                    "type": "string"
+                                },
+                                "location": {
+                                    "type": "object",
+                                    "properties": {
+                                        "city": {
+                                            "type": "string"
+                                        },
+                                        "state": {
+                                            "type": "string"
+                                        },
+                                        "stateCode": {
+                                            "type": "string",
+                                            "description": "Free field. ISO/postal state or region code, when available."
+                                        },
+                                        "country": {
+                                            "type": "string"
+                                        },
+                                        "countryIso2": {
+                                            "type": "string"
+                                        },
+                                        "continent": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "socialLinks": {
+                                    "type": "object",
+                                    "properties": {
+                                        "linkedin": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "has": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "description": "Available data points that can be revealed via Enrich Companies. Includes base firmographic fields plus new revealable fields: employeesByDepartment, employeesByLocation, employeesBySeniority, competitors, businessModel, phones, emails, keywords, socialLinks, estimatedAnnualItSpend, monthlyWebsiteTraffic, openJobs, directParent, ultimateParent.\n"
+                                },
+                                "canReveal": {
+                                    "type": "array",
+                                    "description": "Data fields that can be revealed via Enrich Companies, with the credit cost per field. A cost of 0 means the field has already been revealed for this account.\n",
+                                    "items": {
+                                        "type": "object",
+                                        "description": "A company data field that can be revealed via Enrich Companies, and its credit cost",
+                                        "properties": {
+                                            "field": {
+                                                "type": "string"
+                                            },
+                                            "credits": {
+                                                "type": "integer",
+                                                "description": "Credit cost (0 when already revealed for this account)"
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                },
+                                "error": {
+                                    "type": "object",
+                                    "description": "Per-item error in a batch response",
+                                    "properties": {
+                                        "code": {
+                                            "type": "string"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                }
+                            },
+                            "additionalProperties": true,
+                            "description": "Provider profile or an error-only record. Fields can be absent when unavailable or restricted."
                         },
                         "description": "Provider records, including per-record error objects and reveal availability when returned."
                     },
@@ -2018,23 +3444,79 @@
                     "availableFilters": {
                         "type": "array",
                         "items": {
-                            "type": "object"
-                        },
-                        "description": "Available filter types and requiresQuery flags."
+                            "type": "object",
+                            "properties": {
+                                "filterType": {
+                                    "type": "string"
+                                },
+                                "requiresQuery": {
+                                    "type": "boolean"
+                                },
+                                "supportsQuery": {
+                                    "type": "boolean",
+                                    "description": "Whether this filter type accepts a `query` text search"
+                                }
+                            },
+                            "additionalProperties": true
+                        }
                     },
                     "filters": {
                         "type": "array",
+                        "description": "Catalog of every field you can send in the search request body, one entry per path",
                         "items": {
-                            "type": "object"
-                        },
-                        "description": "Optional detailed filter catalog."
+                            "type": "object",
+                            "properties": {
+                                "path": {
+                                    "type": "string",
+                                    "description": "Dot path of the field in the search request body"
+                                },
+                                "type": {
+                                    "type": "string",
+                                    "description": "Value type of the field"
+                                },
+                                "description": {
+                                    "type": "string",
+                                    "description": "What the field does. Omitted for some container objects."
+                                },
+                                "valueSource": {
+                                    "type": "string",
+                                    "description": "Where valid values come from: `free` (any value), `enum` (one of `values`), or `lookup` (fetch them from `lookup.url`)"
+                                },
+                                "values": {
+                                    "type": "array",
+                                    "description": "Allowed values. Present when `valueSource` is `enum`.",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                },
+                                "lookup": {
+                                    "type": "object",
+                                    "description": "Where to fetch valid values. Present when `valueSource` is `lookup`.",
+                                    "properties": {
+                                        "filterType": {
+                                            "type": "string"
+                                        },
+                                        "url": {
+                                            "type": "string",
+                                            "description": "Filter values endpoint for this field"
+                                        },
+                                        "requiresQuery": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                }
+                            },
+                            "additionalProperties": true
+                        }
                     },
                     "generatedAt": {
                         "type": "string",
-                        "description": "Optional catalog timestamp."
+                        "format": "date-time",
+                        "description": "When this list was generated"
                     }
                 },
-                "required": []
+                "additionalProperties": true
             }
         },
         "get_filter_values": {
@@ -2078,7 +3560,13 @@
                 "type": "object",
                 "properties": {
                     "values": {
-                        "description": "Provider filter values; shape varies by filter type (list, object or null)."
+                        "description": "Filter-dependent values: e.g. ranges with min/max, taxonomy objects with id/name, or strings. Additional provider fields are preserved.",
+                        "type": [
+                            "array",
+                            "object",
+                            "null"
+                        ],
+                        "items": {}
                     },
                     "total": {
                         "type": "integer",
@@ -2106,22 +3594,132 @@
                 "properties": {
                     "credits": {
                         "type": "object",
-                        "description": "Total, used and remaining credits."
+                        "properties": {
+                            "total": {
+                                "type": "number"
+                            },
+                            "used": {
+                                "type": "number"
+                            },
+                            "remaining": {
+                                "type": "number"
+                            }
+                        },
+                        "additionalProperties": true
                     },
                     "rateLimits": {
                         "type": "object",
-                        "description": "Account-level limits and reset times."
+                        "properties": {
+                            "daily": {
+                                "type": [
+                                    "object",
+                                    "null"
+                                ],
+                                "properties": {
+                                    "limit": {
+                                        "type": "number"
+                                    },
+                                    "used": {
+                                        "type": "number"
+                                    },
+                                    "remaining": {
+                                        "type": "number"
+                                    },
+                                    "resetsAt": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                    }
+                                },
+                                "additionalProperties": true
+                            },
+                            "hourly": {
+                                "type": [
+                                    "object",
+                                    "null"
+                                ],
+                                "properties": {
+                                    "limit": {
+                                        "type": "number"
+                                    },
+                                    "used": {
+                                        "type": "number"
+                                    },
+                                    "remaining": {
+                                        "type": "number"
+                                    },
+                                    "resetsAt": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                    }
+                                },
+                                "additionalProperties": true
+                            },
+                            "minute": {
+                                "type": [
+                                    "object",
+                                    "null"
+                                ],
+                                "properties": {
+                                    "limit": {
+                                        "type": "number"
+                                    },
+                                    "used": {
+                                        "type": "number"
+                                    },
+                                    "remaining": {
+                                        "type": "number"
+                                    },
+                                    "resetsAt": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                    }
+                                },
+                                "additionalProperties": true
+                            }
+                        },
+                        "additionalProperties": true
                     },
                     "plan": {
                         "type": "object",
-                        "description": "Plan category and dates."
+                        "properties": {
+                            "category": {
+                                "type": "string"
+                            },
+                            "renewalType": {
+                                "type": "string"
+                            },
+                            "startDate": {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            "endDate": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "format": "date-time",
+                                "description": "Renewal/end date. Omitted (null) for free accounts, since they have no renewal cycle."
+                            }
+                        },
+                        "additionalProperties": true
                     },
                     "pricing": {
                         "type": "object",
-                        "description": "Credit prices per action."
+                        "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                                "credits": {
+                                    "type": "number"
+                                },
+                                "perQuantity": {
+                                    "type": "number"
+                                }
+                            },
+                            "additionalProperties": true
+                        }
                     }
                 },
-                "required": []
+                "additionalProperties": true
             }
         },
         "get_contact_enrichment_job": {
@@ -2175,14 +3773,230 @@
                     "covers": {
                         "type": "array",
                         "items": {
-                            "type": "object"
+                            "type": "object",
+                            "description": "Work the job is still doing for one contact.",
+                            "properties": {
+                                "contactId": {
+                                    "type": "string"
+                                },
+                                "refId": {
+                                    "type": "string",
+                                    "description": "Echo of the request line reference, when the enrich line had one."
+                                },
+                                "dataPoints": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "description": "Data points still being fetched."
+                                }
+                            },
+                            "additionalProperties": true
                         },
                         "description": "Contacts and data points still outstanding."
                     },
                     "contacts": {
                         "type": "array",
                         "items": {
-                            "type": "object"
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "firstName": {
+                                    "type": "string"
+                                },
+                                "lastName": {
+                                    "type": "string"
+                                },
+                                "fullName": {
+                                    "type": "string"
+                                },
+                                "jobTitle": {
+                                    "type": "object",
+                                    "properties": {
+                                        "title": {
+                                            "type": "string"
+                                        },
+                                        "departments": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "seniority": {
+                                            "type": "string"
+                                        },
+                                        "startDate": {
+                                            "type": "string",
+                                            "description": "Date the contact started in this role"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "location": {
+                                    "type": "object",
+                                    "properties": {
+                                        "country": {
+                                            "type": "string"
+                                        },
+                                        "countryIso2": {
+                                            "type": "string"
+                                        },
+                                        "state": {
+                                            "type": "string"
+                                        },
+                                        "city": {
+                                            "type": "string"
+                                        },
+                                        "continent": {
+                                            "type": "string"
+                                        },
+                                        "coordinates": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "number"
+                                            },
+                                            "description": "City location coordinates: `[longitude, latitude]` of the city the contact is based in. City-level only - not a street address or neighborhood."
+                                        },
+                                        "isEuContact": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "emails": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "email": {
+                                                "type": "string",
+                                                "format": "email"
+                                            },
+                                            "type": {
+                                                "type": "string"
+                                            },
+                                            "confidence": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ]
+                                            },
+                                            "updateDate": {
+                                                "type": "string",
+                                                "format": "date"
+                                            },
+                                            "dataSource": {
+                                                "type": "string",
+                                                "description": "Where this data point came from. `lusha` for Lusha data, or `<providerId>` when an external Data Waterfall provider delivered it (for example `wiza`). Omitted when the waterfall did not run."
+                                            },
+                                            "credits": {
+                                                "type": "number",
+                                                "description": "Credits charged for this one data point. Present only when an external provider delivered it. Omitted for Lusha-sourced data points."
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                },
+                                "phones": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "number": {
+                                                "type": "string"
+                                            },
+                                            "type": {
+                                                "type": "string"
+                                            },
+                                            "doNotCall": {
+                                                "type": "boolean"
+                                            },
+                                            "updateDate": {
+                                                "type": "string",
+                                                "format": "date"
+                                            },
+                                            "dataSource": {
+                                                "type": "string",
+                                                "description": "Where this data point came from. `lusha` for Lusha data, or `<providerId>` when an external Data Waterfall provider delivered it (for example `wiza`). Omitted when the waterfall did not run."
+                                            },
+                                            "credits": {
+                                                "type": "number",
+                                                "description": "Credits charged for this one data point. Present only when an external provider delivered it. Omitted for Lusha-sourced data points."
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                },
+                                "company": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "domain": {
+                                            "type": "string"
+                                        },
+                                        "industry": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "socialLinks": {
+                                    "type": "object",
+                                    "properties": {
+                                        "linkedin": {
+                                            "type": "string"
+                                        },
+                                        "xUrl": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "error": {
+                                    "type": "object",
+                                    "description": "Per-item error in a batch response",
+                                    "properties": {
+                                        "code": {
+                                            "type": "string"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
+                                },
+                                "missingDataPoints": {
+                                    "type": "array",
+                                    "maxItems": 2,
+                                    "items": {
+                                        "type": "object",
+                                        "description": "A requested data point the waterfall could not resolve. Describes the waterfall as a whole, not a single provider.",
+                                        "properties": {
+                                            "type": {
+                                                "type": "string"
+                                            },
+                                            "status": {
+                                                "type": "string",
+                                                "description": "`NOT_FOUND` - every source was searched and nothing was found.\n`BILLING_FAILED` - the run stopped on credits before the field was fully searched."
+                                            },
+                                            "description": {
+                                                "type": "string",
+                                                "description": "Human-readable text. Do not parse it."
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    },
+                                    "description": "Present when the waterfall ran and at least one requested data point is still unresolved. At most one entry for `email` and one for `phone`."
+                                }
+                            },
+                            "additionalProperties": true
                         },
                         "description": "Only contacts covered by this job; merge by id."
                     },
@@ -2197,7 +4011,9 @@
                 },
                 "required": [
                     "jobId",
-                    "status"
+                    "status",
+                    "requestId",
+                    "expiresAt"
                 ]
             }
         }
