@@ -215,17 +215,79 @@ async def test_create_sharepoint_site_returns_operation_from_accepted_response(m
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("status,site_id", [("running", None), ("succeeded", "example.sharepoint.com,site,web")])
-async def test_get_sharepoint_site_creation_status(mock_context, status, site_id):
-    mock_context.fetch = make_fetch({"status": status, "resourceId": site_id})
+@pytest.mark.parametrize(
+    "status,error", [("running", None), ("failed", {"code": "siteExists", "message": "Site exists"})]
+)
+async def test_get_sharepoint_site_creation_status_preserves_operation_error(mock_context, status, error):
+    mock_context.fetch = make_fetch({"status": status, "error": error})
+
     result = await microsoft365.execute_action(
         "get_sharepoint_site_creation_status", {"operation_id": "abc="}, mock_context
     )
 
-    assert result.result.data == {"status": status, "site_id": site_id, "error": None}
-    mock_context.fetch.assert_awaited_once_with(
-        "https://graph.microsoft.com/beta/sites/getOperationStatus(operationId='abc%3D')"
+    assert result.result.data == {"status": status, "site_id": None, "error": error}
+
+
+@pytest.mark.asyncio
+async def test_sharepoint_site_provisioning_workflow(mock_context):
+    operation_url = "https://graph.microsoft.com/beta/sites/getOperationStatus(operationId='abc%3D')"
+    site_id = "example.sharepoint.com,site,web"
+    mock_context.fetch.side_effect = [
+        FetchResponse(status=202, headers={"Location": operation_url}, data=None),
+        FetchResponse(status=200, headers={}, data={"status": "running", "error": None}),
+        FetchResponse(status=200, headers={}, data={"status": "succeeded", "resourceId": site_id}),
+        FetchResponse(status=200, headers={}, data={"value": [{"id": "drive1", "name": "Documents"}]}),
+    ]
+
+    created = await microsoft365.execute_action(
+        "create_sharepoint_site",
+        {"name": "Test", "web_url": "https://example.sharepoint.com/sites/test", "template": "sts"},
+        mock_context,
     )
+    status_input = {"operation_id": created.result.data["operation_id"]}
+    pending = await microsoft365.execute_action("get_sharepoint_site_creation_status", status_input, mock_context)
+    assert pending.result.data["status"] == "running"
+    ready = await microsoft365.execute_action("get_sharepoint_site_creation_status", status_input, mock_context)
+    assert ready.result.data["status"] == "succeeded"
+    libraries = await microsoft365.execute_action(
+        "list_sharepoint_libraries", {"site_id": ready.result.data["site_id"]}, mock_context
+    )
+
+    assert libraries.result.data["libraries"][0]["id"] == "drive1"
+    assert [call.args[0] for call in mock_context.fetch.await_args_list] == [
+        "https://graph.microsoft.com/beta/sites",
+        operation_url,
+        operation_url,
+        "https://graph.microsoft.com/v1.0/sites/example.sharepoint.com%2Csite%2Cweb/drives",
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "action,inputs,http_status,code,message",
+    [
+        ("get_sharepoint_site_creation_status", {"operation_id": "abc="}, 403, "accessDenied", "Access denied"),
+        (
+            "create_sharepoint_folder",
+            {"drive_id": "drive", "name": "Reports"},
+            409,
+            "nameAlreadyExists",
+            "Folder exists",
+        ),
+        ("upload_sharepoint_file", {"drive_id": "drive", **make_file_input()}, 409, "nameAlreadyExists", "File exists"),
+    ],
+)
+async def test_sharepoint_actions_preserve_graph_failure_message(
+    mock_context, action, inputs, http_status, code, message
+):
+    mock_context.fetch.return_value = FetchResponse(
+        status=http_status, headers={}, data={"error": {"code": code, "message": message}}
+    )
+
+    result = await microsoft365.execute_action(action, inputs, mock_context)
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert message in result.result.message
 
 
 @pytest.mark.asyncio

@@ -603,6 +603,7 @@ async def _upload_drive_file(
             data=file_content,
             headers={"Content-Type": content_type},
         )
+        _check_fetch_success(resp)
         response = resp.data
         _check_response(response, "id", "webUrl", "size")
 
@@ -1926,8 +1927,10 @@ class GetSharePointSiteCreationStatusAction(ActionHandler):
             resp = await context.fetch(
                 f"{GRAPH_SITE_PROVISIONING_URL}/getOperationStatus(operationId='{operation_id}')"
             )
-            _check_fetch_success(resp)
-            _check_response(resp.data, "status")
+            # A successful operation response can include its own provisioning error.
+            if resp.status != 200 or not isinstance(resp.data, dict) or not resp.data.get("status"):
+                _check_fetch_success(resp)
+                raise ValueError(f"Microsoft Graph returned an invalid site operation response (HTTP {resp.status})")
             return ActionResult(
                 data={
                     "status": resp.data["status"],

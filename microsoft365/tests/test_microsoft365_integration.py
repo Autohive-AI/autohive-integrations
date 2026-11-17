@@ -808,22 +808,42 @@ async def test_upload_sharepoint_file_live(live_context):
     folder_url = f"{drive_url}/items/{_encode_path_segment(folder.result.data['id'])}"
 
     try:
-        content = f"Autohive SharePoint upload test {folder_name}"
-        uploaded = await microsoft365.execute_action(
-            "upload_sharepoint_file",
-            {
+        nested_inputs = {
+            "drive_id": TEST_SHAREPOINT_DRIVE_ID,
+            "name": "Nested",
+            "parent_folder_id": folder.result.data["id"],
+        }
+        nested = await microsoft365.execute_action("create_sharepoint_folder", nested_inputs, live_context)
+        assert nested.type != ResultType.ACTION_ERROR, getattr(nested.result, "message", nested.result)
+
+        duplicate_folder = await microsoft365.execute_action("create_sharepoint_folder", nested_inputs, live_context)
+        assert duplicate_folder.type == ResultType.ACTION_ERROR
+
+        payload = b"Autohive binary test\x00\xff\x80"
+        for path in (folder_name, f"{folder_name}/Nested"):
+            upload_inputs = {
                 "drive_id": TEST_SHAREPOINT_DRIVE_ID,
-                "folder_path": folder_name,
-                "filename": f"{folder_name}.txt",
-                "content": content,
-            },
-            live_context,
-        )
-        assert uploaded.type != ResultType.ACTION_ERROR, getattr(uploaded.result, "message", uploaded.result)
-        file_id = _encode_path_segment(uploaded.result.data["id"])
-        response = await live_context.fetch(f"{drive_url}/items/{file_id}/content")
-        assert response.status == 200
-        assert response.data == content.encode("utf-8")
+                "folder_path": path,
+                "file": {
+                    "name": "test.bin",
+                    "contentType": "application/octet-stream",
+                    "content": base64.b64encode(payload).decode("ascii"),
+                },
+            }
+            uploaded = await microsoft365.execute_action("upload_sharepoint_file", upload_inputs, live_context)
+            assert uploaded.type != ResultType.ACTION_ERROR, getattr(uploaded.result, "message", uploaded.result)
+            file_id = _encode_path_segment(uploaded.result.data["id"])
+            file_url = f"{drive_url}/items/{file_id}/content"
+            downloaded = await live_context.fetch(file_url)
+            assert downloaded.status == 200
+            assert downloaded.data == payload
+
+            upload_inputs["file"]["content"] = base64.b64encode(b"replacement").decode("ascii")
+            duplicate_file = await microsoft365.execute_action("upload_sharepoint_file", upload_inputs, live_context)
+            assert duplicate_file.type == ResultType.ACTION_ERROR
+            original = await live_context.fetch(file_url)
+            assert original.status == 200
+            assert original.data == payload
     finally:
         cleanup = await live_context.fetch(folder_url, method="DELETE")
         assert cleanup.status == 204, f"SharePoint test folder cleanup returned HTTP {cleanup.status}"

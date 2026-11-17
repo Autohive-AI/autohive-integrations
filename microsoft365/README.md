@@ -871,6 +871,6 @@ and optional test variables as blank entries; keep real values in local `.env`.
 Obtain a valid access token with the scopes in `config.json` through the Autohive
 platform OAuth flow. Refresh expired access tokens through the same flow.
 
-The SharePoint write test creates a uniquely named folder in the configured test library, uploads and downloads a file to verify its bytes, and removes the test folder and its file.
+The SharePoint write test creates a uniquely named folder and a nested folder in the configured test library, verifies binary uploads and downloads in both, checks that duplicate folder and file names are rejected, and deletes the test folder and its contents. Site provisioning is covered with mocked Graph responses. Live verification requires an isolated tenant with admin consent and a way to remove the provisioned site.
 
 A separate destructive live test creates a new draft with a binary attachment, verifies the saved bytes, and deletes the unsent draft without sending it.
