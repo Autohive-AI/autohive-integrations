@@ -1643,8 +1643,9 @@ async def test_update_meeting_activity(live_context):
         await live_context.fetch(f"{url}/{meeting_id}", method="DELETE")
 
 
-@pytest.mark.skip(
-    reason="CI uses our main HubSpot account; Lead cleanup tests require a dedicated Lead-enabled test account"
+@pytest.mark.skipif(
+    os.environ.get("HUBSPOT_RUN_LEAD_TESTS") != "1",
+    reason="Set HUBSPOT_RUN_LEAD_TESTS=1 only for a dedicated Lead-enabled test account",
 )
 class TestLeadCleanup:
     async def test_reads_leads(self, live_context):
