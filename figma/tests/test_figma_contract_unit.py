@@ -2,9 +2,10 @@
 
 import json
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from autohive_integrations_sdk import FetchResponse, HTTPError
+from autohive_integrations_sdk import ExecutionContext, FetchResponse, HTTPError
 from autohive_integrations_sdk.integration import ResultType
 
 from figma.figma import figma
@@ -38,8 +39,6 @@ CASES = [
         {"id": "456", "message": "Review"},
     ),
     ("delete_comment", {"file_key": "AbC123", "comment_id": "456"}, "/files/AbC123/comments/456", {"deleted": True}),
-    ("list_team_projects", {"team_id": "123"}, "/teams/123/projects", {"projects": []}),
-    ("list_project_files", {"project_id": "123"}, "/projects/123/files", {"files": []}),
     ("list_file_versions", {"file_key": "AbC123"}, "/files/AbC123/versions", {"versions": [], "pagination": {}}),
     ("list_file_components", {"file_key": "AbC123"}, "/files/AbC123/components", {"meta": {"components": []}}),
     ("list_team_components", {"team_id": "123"}, "/teams/123/components", {"meta": {"components": []}}),
@@ -63,6 +62,28 @@ def test_all_configured_actions_are_covered():
     assert {case[0] for case in CASES} == set(config["actions"])
 
 
+async def test_sdk_sends_oauth_bearer_token():
+    context = ExecutionContext(
+        auth={
+            "auth_type": "PlatformOauth2",
+            "credentials": {"access_token": "test_figma_token"},  # nosec B105
+        }
+    )
+    response = MagicMock(status=200, ok=True)
+    response.headers = {"Content-Type": "application/json"}
+    response.json = AsyncMock(return_value={"id": "123", "handle": "Designer", "email": "designer@example.com"})
+    session = MagicMock()
+    session.request.return_value.__aenter__ = AsyncMock(return_value=response)
+    context._session = session
+
+    result = await figma.execute_action("get_me", {}, context)
+
+    assert result.type == ResultType.ACTION
+    headers = session.request.call_args.kwargs["headers"]
+    assert headers["Authorization"] == "Bearer test_figma_token"
+    assert "X-Figma-Token" not in headers
+
+
 @pytest.mark.parametrize("action,inputs,path,data", CASES, ids=[case[0] for case in CASES])
 async def test_action_contract(mock_context, action, inputs, path, data):
     mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=data)
@@ -72,7 +93,7 @@ async def test_action_contract(mock_context, action, inputs, path, data):
     mock_context.fetch.assert_awaited_once()
     call = mock_context.fetch.call_args
     assert call.args == (f"https://api.figma.com/v1{path}",)
-    assert call.kwargs["headers"] == {"X-Figma-Token": "test_figma_token", "Accept": "application/json"}
+    assert call.kwargs["headers"] == {"Accept": "application/json"}
     assert call.kwargs["method"] == {"create_comment": "POST", "delete_comment": "DELETE"}.get(action, "GET")
 
 
@@ -86,17 +107,17 @@ async def test_api_errors_are_not_success(mock_context, action, inputs, path, da
 
 @pytest.mark.parametrize(
     "auth",
-    [{}, {"personal_access_token": "flat"}, {"auth_type": "Custom", "credentials": {}}],  # nosec B105
+    [{}, {"access_token": "flat"}, {"auth_type": "PlatformOauth2", "credentials": {}}],  # nosec B105
 )
 async def test_missing_or_flat_auth_is_rejected(mock_context, auth):
     mock_context.auth = auth
     result = await figma.execute_action("get_me", {}, mock_context)
-    assert result.type == ResultType.VALIDATION_ERROR
+    assert result.type == ResultType.ACTION_ERROR
     mock_context.fetch.assert_not_awaited()
 
 
 async def test_whitespace_token_does_not_make_request(mock_context):
-    mock_context.auth["credentials"]["personal_access_token"] = "   "  # nosec B105
+    mock_context.auth["credentials"]["access_token"] = "   "  # nosec B105
     result = await figma.execute_action("get_me", {}, mock_context)
     assert result.type == ResultType.ACTION_ERROR
     mock_context.fetch.assert_not_awaited()

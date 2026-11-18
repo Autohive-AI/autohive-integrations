@@ -13,8 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 def mock_context():
     context = MagicMock(name="ExecutionContext")
     context.auth = {
-        "auth_type": "Custom",
-        "credentials": {"personal_access_token": "test_figma_token"},  # nosec B105
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": "test_figma_token"},  # nosec B105
     }
     context.fetch = AsyncMock()
     return context

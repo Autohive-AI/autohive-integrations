@@ -1,4 +1,4 @@
-"""Figma REST API integration: files, images, comments, projects, and libraries."""
+"""Figma REST API integration: files, images, comments and libraries."""
 
 from pathlib import Path
 from typing import Any
@@ -40,12 +40,12 @@ async def _request(
     body: dict[str, Any] | None = None,
 ) -> ActionResult | ActionError:
     """Send authenticated requests through the SDK, preserving Figma response fields."""
-    token = context.auth.get("credentials", {}).get("personal_access_token", "")
+    token = context.auth.get("credentials", {}).get("access_token", "")
     if not token or not token.strip():
-        return ActionError(message="A Figma personal access token is required.")
+        return ActionError(message="Connect a Figma account before running this action.")
     kwargs: dict[str, Any] = {
         "method": method,
-        "headers": {"X-Figma-Token": token, "Accept": "application/json"},
+        "headers": {"Accept": "application/json"},
     }
     if params:
         kwargs["params"] = params
@@ -203,27 +203,6 @@ class DeleteCommentAction(ActionHandler):
         file_key = quote(inputs["file_key"], safe="")
         comment_id = quote(inputs["comment_id"], safe="")
         return await _request(context, f"/files/{file_key}/comments/{comment_id}", method="DELETE")
-
-
-@figma.action("list_team_projects")
-class ListTeamProjectsAction(ActionHandler):
-    """List projects accessible in a team."""
-
-    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
-        team_id = quote(inputs["team_id"], safe="")
-        return await _request(context, f"/teams/{team_id}/projects")
-
-
-@figma.action("list_project_files")
-class ListProjectFilesAction(ActionHandler):
-    """List files in a project."""
-
-    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
-        project_id = quote(inputs["project_id"], safe="")
-        params = {}
-        if "branch_data" in inputs:
-            params["branch_data"] = str(inputs.get("branch_data")).lower()
-        return await _request(context, f"/projects/{project_id}/files", params=params)
 
 
 @figma.action("list_file_versions")

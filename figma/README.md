@@ -1,20 +1,20 @@
 # Figma
 
-Figma REST API integration for Autohive, using SDK 2.1. Includes 21 actions for design inspection, image export, comments, projects, version history, and published libraries.
+Figma REST API integration for Autohive, using SDK 2.1. Includes 19 actions for design inspection, image export, comments, version history, and published libraries.
 
 ## Authentication
 
-1. Open Figma account **Settings > Security > Personal access tokens**.
-2. Generate a token, select an expiration, and enable only the scopes needed by your workflows (see the action table).
-3. Enter it as **Personal Access Token** in Autohive. The integration sends it in `X-Figma-Token` through `context.fetch()`.
+Choose **Connect** in Autohive and sign in with Figma. This integration uses the platform-owned **Figma** OAuth provider. The SDK sends the connected account's access token as `Authorization: Bearer ...`; users do not need to paste personal access tokens.
 
-Runtime credential shape:
+The provider must reference a valid, published Figma OAuth application available to public users. The app owner must enable the nine scopes listed in the action table, register Autohive's exact callback URL, and store the matching client secret in AWS Parameter Store. A missing or deleted client ID cannot be repaired by changing scopes or token URLs.
+
+Runtime credential shape (managed by Autohive):
 
 ```json
-{"auth_type": "Custom", "credentials": {"personal_access_token": "<your-token>"}}
+{"auth_type": "PlatformOauth2", "credentials": {"access_token": "<managed-by-platform>"}}
 ```
 
-Token permissions cannot exceed the user's access to a resource. Tokens expire; replace expired or revoked tokens in the connected account.
+Scopes never override the signed-in user's permissions. Reconnect an existing account after adding scopes. The platform exchanges codes at `https://api.figma.com/v1/oauth/token` and refreshes at `https://api.figma.com/v1/oauth/refresh`, both using HTTP Basic client authentication. Figma's reusable refresh token must be retained when refresh responses omit it.
 
 ## Actions
 
@@ -31,8 +31,6 @@ Inputs marked required must be supplied. Other inputs are optional. Responses pr
 | `list_comments` | `file_key` (required), `as_md` | `comments` | `file_comments:read` |
 | `create_comment` | `file_key` (required), `message` (required), `comment_id`, `client_meta` | `id`, `message` | `file_comments:write` |
 | `delete_comment` | `file_key` (required), `comment_id` (required) | `deleted` | `file_comments:write` |
-| `list_team_projects` | `team_id` (required) | `projects` | `projects:read` |
-| `list_project_files` | `project_id` (required), `branch_data` | `files` | `projects:read` |
 | `list_file_versions` | `file_key` (required), `page_size`, `before`, `after` | `versions` | `file_versions:read` |
 | `list_file_components` | `file_key` (required) | `meta` | `library_content:read` |
 | `list_team_components` | `team_id` (required), `page_size`, `before`, `after` | `meta` | `team_library_content:read` |
@@ -46,7 +44,7 @@ Inputs marked required must be supplied. Other inputs are optional. Responses pr
 
 ## Usage and pagination
 
-A URL such as `https://www.figma.com/design/AbC123/Example?node-id=1-2` has file key `AbC123`. Pass node IDs in API form, such as `1:2`, in the `ids` array. Asset `key` values are published component/style keys, not node IDs. Team/project IDs come from their corresponding browser URLs.
+A URL such as `https://www.figma.com/design/AbC123/Example?node-id=1-2` has file key `AbC123`. Pass node IDs in API form, such as `1:2`, in the `ids` array. Asset `key` values are published component/style keys, not node IDs. Team IDs come from their corresponding browser URLs.
 
 Example inputs:
 
@@ -68,14 +66,14 @@ Team library and version actions return one page per call. Supply **either** `be
 
 `export_images` returns an `images` map of node IDs to temporary URLs; null values mean that node could not be rendered. `get_image_fills` returns image reference URLs under `meta.images`. Download exported files before their URLs expire; these actions return URLs rather than Autohive file objects.
 
-Published component/style endpoints return published assets, which may be empty even when unpublished assets exist in the document. General canvas creation and editing are not exposed by these REST actions.
+Published component/style endpoints return published assets, which may be empty even when unpublished assets exist in the document. General canvas creation and editing are not exposed by these REST actions. Project/folder browsing actions are intentionally omitted: Figma restricts `projects:read` and `folders:read` endpoints to private OAuth apps, so they cannot serve arbitrary Autohive customers.
 
 ## API and troubleshooting
 
 - Base URL: `https://api.figma.com/v1`.
 - [REST API reference](https://developers.figma.com/docs/rest-api/), [personal access tokens](https://developers.figma.com/docs/rest-api/personal-access-tokens/), [scopes](https://developers.figma.com/docs/rest-api/scopes/).
 - [Rate limits](https://developers.figma.com/docs/rest-api/rate-limits/) vary by endpoint, seat, and resource plan. SDK HTTP retry handling applies; HTTP 429 errors should be retried according to `Retry-After`, rather than immediately repeating requests.
-- 401/403: check token expiration, scopes, and the user's access to the team/file. 404: verify the file key, project ID, or published asset key.
+- 401/403: check the OAuth connection, scopes, and the user's access to the team/file. 404: verify the file key, team ID, or published asset key.
 - Use `depth`, `ids`, and metadata-only reads to avoid unnecessarily large documents.
 - Expected API failures return `ActionError`; invalid inputs are rejected by the SDK before making a request. Unexpected infrastructure exceptions follow SDK error handling.
 
@@ -90,4 +88,4 @@ python ../autohive-integrations-tooling/scripts/check_code.py figma
 python -m pytest figma/ -v
 ```
 
-Unit tests mock SDK `FetchResponse` objects and require no credentials. Live API verification requires a separately provided Figma token and accessible resources; it is not part of the mocked suite.
+Unit tests mock SDK `FetchResponse` objects and require no credentials. Live API verification requires a working OAuth app, connected Figma account, and accessible resources; it is not part of the mocked suite.

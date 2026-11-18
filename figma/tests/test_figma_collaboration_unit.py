@@ -64,7 +64,6 @@ async def test_versions_return_links_without_following_them(mock_context):
         ("create_comment", {"file_key": "AbC123", "message": "Review", "client_meta": {"node_id": "1:2"}}),
         ("list_file_versions", {"file_key": "AbC123", "page_size": 51}),
         ("list_file_versions", {"file_key": "AbC123", "before": 1, "after": 2}),
-        ("list_team_projects", {"team_id": "../123"}),
     ],
 )
 async def test_invalid_collaboration_inputs(mock_context, action, inputs):

@@ -1,28 +1,24 @@
 {
     "name": "figma",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "display_name": "Figma",
-    "description": "Read Figma design files, export images, manage comments, and browse projects and published libraries.",
+    "description": "Read Figma design files, export images, manage comments, and browse published libraries using public OAuth.",
     "entry_point": "figma.py",
     "supports_billing": false,
     "auth": {
-        "type": "custom",
-        "title": "Figma Personal Access Token",
-        "fields": {
-            "type": "object",
-            "properties": {
-                "personal_access_token": {
-                    "type": "string",
-                    "format": "password",
-                    "label": "Personal Access Token",
-                    "help_text": "Generate a scoped token in Figma Settings > Security > Personal access tokens.",
-                    "minLength": 1
-                }
-            },
-            "required": [
-                "personal_access_token"
-            ]
-        }
+        "type": "platform",
+        "provider": "Figma",
+        "scopes": [
+            "current_user:read",
+            "file_comments:read",
+            "file_comments:write",
+            "file_content:read",
+            "file_metadata:read",
+            "file_versions:read",
+            "library_content:read",
+            "team_library_content:read",
+            "library_assets:read"
+        ]
     },
     "actions": {
         "get_me": {
@@ -556,80 +552,6 @@
                 },
                 "required": [
                     "deleted"
-                ],
-                "additionalProperties": true
-            }
-        },
-        "list_team_projects": {
-            "display_name": "List Team Projects",
-            "description": "List projects accessible in a team.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "team_id": {
-                        "type": "string",
-                        "description": "Team ID from the team URL.",
-                        "minLength": 1,
-                        "pattern": "^[0-9]+$"
-                    }
-                },
-                "required": [
-                    "team_id"
-                ],
-                "additionalProperties": false
-            },
-            "output_schema": {
-                "type": "object",
-                "properties": {
-                    "projects": {
-                        "type": "array",
-                        "description": "Returned records.",
-                        "items": {
-                            "type": "object"
-                        }
-                    }
-                },
-                "required": [
-                    "projects"
-                ],
-                "additionalProperties": true
-            }
-        },
-        "list_project_files": {
-            "display_name": "List Project Files",
-            "description": "List files in a project.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "project_id": {
-                        "type": "string",
-                        "description": "Project ID from the project URL.",
-                        "minLength": 1,
-                        "pattern": "^[0-9]+$"
-                    },
-                    "branch_data": {
-                        "type": "boolean",
-                        "description": "Include branches for each file."
-                    }
-                },
-                "required": [
-                    "project_id"
-                ],
-                "additionalProperties": false
-            },
-            "output_schema": {
-                "type": "object",
-                "properties": {
-                    "files": {
-                        "type": "array",
-                        "description": "Returned records.",
-                        "items": {
-                            "type": "object"
-                        }
-                    }
-                },
-                "required": [
-                    "files"
                 ],
                 "additionalProperties": true
             }

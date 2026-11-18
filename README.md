@@ -90,7 +90,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Figma
 
-[figma](figma): Read design files and nodes, export images, manage comments, browse team projects and file versions, and retrieve published components, component sets, and styles. Includes 21 actions and uses scoped Figma personal access token authentication.
+[figma](figma): Read design files and nodes, export images, manage comments, browse file versions, and retrieve published components, component sets, and styles. Includes 19 actions and uses platform-managed Figma OAuth authentication.
 
 ### Fergus
 

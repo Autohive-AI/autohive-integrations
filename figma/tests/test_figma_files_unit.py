@@ -30,7 +30,7 @@ async def test_file_options_and_document_preserved(mock_context):
     mock_context.fetch.assert_awaited_once_with(
         "https://api.figma.com/v1/files/AbC123",
         method="GET",
-        headers={"X-Figma-Token": "test_figma_token", "Accept": "application/json"},
+        headers={"Accept": "application/json"},
         params={
             "ids": "1:2,3:4",
             "depth": 2,
