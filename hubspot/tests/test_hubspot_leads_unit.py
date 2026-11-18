@@ -130,3 +130,40 @@ async def test_missing_scope_is_an_action_error(context):
     result = await hubspot.execute_action("list_leads", {}, context)
     assert result.type == ResultType.ACTION_ERROR
     assert "MISSING_SCOPES" in result.result.message
+
+
+@pytest.mark.parametrize(
+    "action, inputs, path, method, body",
+    [
+        ("delete_lead", {"lead_id": "12"}, "/12", "DELETE", None),
+        (
+            "batch_delete_leads",
+            {"lead_ids": ["12", "34"]},
+            "/batch/archive",
+            "POST",
+            {"inputs": [{"id": "12"}, {"id": "34"}]},
+        ),
+    ],
+)
+async def test_delete_actions_use_recycling_bin(context, action, inputs, path, method, body):
+    context.fetch.return_value = FetchResponse(status=204, headers={}, data=None)
+    result = await hubspot.execute_action(action, inputs, context)
+    assert result.result.data == {"archived": True}
+    context.fetch.assert_awaited_once()
+    assert context.fetch.call_args.args == (LEADS_URL + path,)
+    assert context.fetch.call_args.kwargs["method"] == method
+    assert context.fetch.call_args.kwargs.get("json") == body
+
+
+@pytest.mark.parametrize(
+    "action, inputs",
+    [
+        ("delete_lead", {"lead_id": "12"}),
+        ("batch_delete_leads", {"lead_ids": ["12"]}),
+    ],
+)
+async def test_delete_actions_report_missing_scope(context, action, inputs):
+    context.fetch.side_effect = HTTPError(403, "MISSING_SCOPES", {})
+    result = await hubspot.execute_action(action, inputs, context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "MISSING_SCOPES" in result.result.message

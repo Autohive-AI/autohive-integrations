@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "4.2.0",
+  "version": "4.3.0",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -34,6 +34,67 @@
     ]
   },
   "actions": {
+    "delete_lead": {
+      "display_name": "Delete Lead",
+      "description": "Delete a HubSpot Lead by moving it to the recycling bin. It can be restored in HubSpot.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "lead_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$",
+            "description": "HubSpot Lead record ID"
+          }
+        },
+        "required": [
+          "lead_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "archived": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "archived"
+        ]
+      }
+    },
+    "batch_delete_leads": {
+      "display_name": "Batch Delete Leads",
+      "description": "Delete up to 100 HubSpot Leads by moving them to the recycling bin. They can be restored in HubSpot.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "lead_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$",
+              "description": "HubSpot Lead record ID"
+            }
+          }
+        },
+        "required": [
+          "lead_ids"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "archived": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "archived"
+        ]
+      }
+    },
     "list_leads": {
       "display_name": "List Leads",
       "description": "List one page of HubSpot Lead records. Pass the returned after cursor to get the next page.",
