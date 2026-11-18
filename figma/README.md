@@ -14,7 +14,7 @@ Runtime credential shape (managed by Autohive):
 {"auth_type": "PlatformOauth2", "credentials": {"access_token": "<managed-by-platform>"}}
 ```
 
-Scopes never override the signed-in user's permissions. Reconnect an existing account after adding scopes. The platform uses the configured `https://api.figma.com/v1/oauth/token` endpoint for both code exchange and refresh, with HTTP Basic client authentication. Figma's reusable refresh token must be retained when refresh responses omit it.
+Scopes never override the signed-in user's permissions. Reconnect an existing account after adding scopes. The platform exchanges codes at the configured `https://api.figma.com/v1/oauth/token` endpoint and refreshes at Figma's dedicated `https://api.figma.com/v1/oauth/refresh` endpoint, both using HTTP Basic client authentication. Refresh requests send the reusable `refresh_token` as form data. Figma's reusable refresh token must be retained when refresh responses omit it.
 
 ## Actions
 
