@@ -5615,23 +5615,3 @@ class RemoveLeadAssociationAction(ActionHandler):
         if isinstance(outcome, ActionError):
             return outcome
         return ActionResult(data={"removed": True})
-
-
-@hubspot.action("batch_upsert_leads")
-class BatchUpsertLeadsAction(ActionHandler):
-    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
-        leads = [
-            {
-                "id": lead["id"],
-                "idProperty": inputs["id_property"],
-                "properties": lead["properties"],
-                "objectWriteTraceId": str(index),
-            }
-            for index, lead in enumerate(inputs["leads"])
-        ]
-        outcome = await _lead_request(
-            context, "batch upsert leads", "/batch/upsert", method="POST", json={"inputs": leads}
-        )
-        if isinstance(outcome, ActionError):
-            return outcome
-        return ActionResult(data=outcome.data)

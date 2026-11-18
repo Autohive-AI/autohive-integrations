@@ -182,11 +182,10 @@ This integration provides comprehensive actions covering complete CRUD operation
 | `archive_lead` | Moves a Lead to HubSpot's recycling bin. |
 | `merge_leads` | Merges a secondary Lead into a primary Lead. Use the ID in the returned record for future requests. |
 | `batch_create_leads`, `batch_update_leads`, `batch_archive_leads` | Creates, updates or archives up to 100 Leads. Batch create and update return HubSpot's results and any per-record errors. |
-| `batch_upsert_leads` | Creates or updates up to 100 Leads by a unique property. Supply the internal property name and a unique value and properties for each record. |
 | `remove_lead_association` | Removes a specified association type between a Lead and a linked record. Removing the last primary association deletes the Lead in HubSpot. |
 
 Use internal property names and string values for writes. An empty string clears a property.
-For batch create, update and upsert, inspect the returned status and errors before retrying. HubSpot can return partial success.
+For batch create and update, inspect the returned status and errors before retrying. HubSpot can return partial success.
 Use `object_type: leads` with `search_crm_objects`, `get_crm_objects` for batch reads, and `get_object_properties`.
 Use `get_association_labels` and `create_association` to find association types and link existing Lead records.
 

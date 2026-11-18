@@ -86,20 +86,6 @@ async def test_list_reads_cursor_and_serializes_properties(context, cursor):
             BATCH_RESULT,
         ),
         (
-            "batch_upsert_leads",
-            {"id_property": "external_id", "leads": [{"id": "ref-12", "properties": CHANGES}]},
-            "POST",
-            "/batch/upsert",
-            {
-                "inputs": [
-                    {"id": "ref-12", "idProperty": "external_id", "properties": CHANGES, "objectWriteTraceId": "0"}
-                ]
-            },
-            207,
-            BATCH_RESULT,
-            BATCH_RESULT,
-        ),
-        (
             "batch_archive_leads",
             {"lead_ids": ["12", "34"]},
             "POST",
@@ -136,6 +122,7 @@ async def test_create_does_not_retry_when_hubspot_may_have_already_created_the_l
     assert result.type == ResultType.ACTION_ERROR
     assert "Check HubSpot before retrying" in result.result.message
     assert context.fetch.call_args.kwargs["retry_count"] == 3
+    context.fetch.assert_awaited_once()
 
 
 async def test_missing_scope_is_an_action_error(context):
