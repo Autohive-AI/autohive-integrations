@@ -5615,3 +5615,19 @@ class RemoveLeadAssociationAction(ActionHandler):
         if isinstance(outcome, ActionError):
             return outcome
         return ActionResult(data={"removed": True})
+
+
+@hubspot.action("delete_lead")
+class DeleteLeadAction(ArchiveLeadAction):
+    """Delete a Lead using HubSpot's recycling bin operation."""
+
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        return await super().execute({"lead_id": inputs["lead_id"]}, context)
+
+
+@hubspot.action("batch_delete_leads")
+class BatchDeleteLeadsAction(BatchArchiveLeadsAction):
+    """Delete up to 100 Leads using HubSpot's recycling bin operation."""
+
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        return await super().execute({"lead_ids": inputs["lead_ids"]}, context)

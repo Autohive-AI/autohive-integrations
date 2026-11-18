@@ -179,10 +179,17 @@ This integration provides comprehensive actions covering complete CRUD operation
 | `get_lead` | Fetches a Lead by record ID, with the same record options as List Leads. |
 | `create_lead` | Creates a Lead from a name, an existing contact ID and optional properties. |
 | `update_lead` | Updates the supplied properties on one Lead. |
-| `archive_lead` | Moves a Lead to HubSpot's recycling bin. |
+| `delete_lead`, `archive_lead` | Moves a Lead to HubSpot's recycling bin. |
 | `merge_leads` | Merges a secondary Lead into a primary Lead. Use the ID in the returned record for future requests. |
-| `batch_create_leads`, `batch_update_leads`, `batch_archive_leads` | Creates, updates or archives up to 100 Leads. Batch create and update return HubSpot's results and any per-record errors. |
+| `batch_create_leads`, `batch_update_leads`, `batch_delete_leads`, `batch_archive_leads` | Creates, updates or archives up to 100 Leads. Batch create and update return HubSpot's results and any per-record errors. |
 | `remove_lead_association` | Removes a specified association type between a Lead and a linked record. Removing the last primary association deletes the Lead in HubSpot. |
+
+Live Lead cleanup tests skip by default. With a dedicated Lead-enabled test account,
+set `HUBSPOT_RUN_LEAD_TESTS=1` and run
+`pytest hubspot/tests/test_hubspot_integration.py -m integration -k TestLeadCleanup --run-hubspot-destructive`.
+Writes also require the existing `--run-hubspot-destructive` flag.
+
+Delete Lead and Batch Delete Leads require the existing `crm.objects.leads.write` scope. Deletion moves records to HubSpot’s recycling bin, where they can be restored.
 
 Use internal property names and string values for writes. An empty string clears a property.
 For batch create and update, inspect the returned status and errors before retrying. HubSpot can return partial success.
