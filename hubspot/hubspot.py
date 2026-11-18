@@ -238,6 +238,7 @@ async def fetch_with_rate_limit_retries(
 
 ASSOCIATIONS_API_URL = "https://api.hubapi.com/crm/associations/2026-09"
 OBJECTS_API_URL = "https://api.hubapi.com/crm/objects/2026-09"
+LEADS_API_URL = f"{OBJECTS_API_URL}/leads"
 
 # HubSpot reads at most 1,000 records' links in one batch request
 MAX_ASSOCIATION_READ_INPUTS = 1000
@@ -5451,3 +5452,166 @@ class UpdateMeetingActionHandler(ActionHandler):
         return await _write_engagement(
             context, f"meetings/{meeting_id}", "PATCH", {"properties": properties}, "meeting", expected_id=meeting_id
         )
+
+
+def _lead_read_params(inputs: dict[str, Any]) -> dict[str, Any]:
+    params = {}
+    for key, values in (
+        ("properties", inputs.get("properties")),
+        ("associations", inputs.get("associations")),
+        ("propertiesWithHistory", inputs.get("propertiesWithHistory")),
+    ):
+        if values:
+            params[key] = ",".join(values)
+    archived = inputs.get("archived")
+    if archived is not None:
+        params["archived"] = str(archived).lower()
+    return params
+
+
+def _new_lead(inputs: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "properties": {**inputs.get("properties", {}), "hs_lead_name": inputs["name"]},
+        "associations": [_hubspot_defined_association(inputs["contact_id"], 578)],
+    }
+
+
+async def _lead_request(
+    context: ExecutionContext, operation: str, path: str = "", *, may_duplicate: bool = False, **request
+):
+    try:
+        return await fetch_with_rate_limit_retries(
+            context, f"{LEADS_API_URL}{path}", resend_on_connection_error=not may_duplicate, **request
+        )
+    except REQUEST_ERRORS as e:
+        if may_duplicate and _outcome_unknown(e):
+            return ActionError(
+                message=f"HubSpot did not confirm whether it could {operation}. Check HubSpot before retrying."
+            )
+        return ActionError(message=f"Failed to {operation}: {_error_text(e)}")
+
+
+@hubspot.action("list_leads")
+class ListLeadsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        params = {**_lead_read_params(inputs), "limit": inputs.get("limit", 100)}
+        if inputs.get("after"):
+            params["after"] = inputs["after"]
+        outcome = await _lead_request(context, "list leads", params=params)
+        if isinstance(outcome, ActionError):
+            return outcome
+        data = outcome.data
+        after = ((data.get("paging") or {}).get("next") or {}).get("after")
+        return ActionResult(data={"leads": data["results"], "after": after})
+
+
+@hubspot.action("get_lead")
+class GetLeadAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        outcome = await _lead_request(context, "get lead", f"/{inputs['lead_id']}", params=_lead_read_params(inputs))
+        if isinstance(outcome, ActionError):
+            return outcome
+        return ActionResult(data={"lead": outcome.data})
+
+
+@hubspot.action("create_lead")
+class CreateLeadAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        outcome = await _lead_request(context, "create lead", method="POST", json=_new_lead(inputs), may_duplicate=True)
+        if isinstance(outcome, ActionError):
+            return outcome
+        return ActionResult(data={"lead": outcome.data})
+
+
+@hubspot.action("update_lead")
+class UpdateLeadAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        outcome = await _lead_request(
+            context, "update lead", f"/{inputs['lead_id']}", method="PATCH", json={"properties": inputs["properties"]}
+        )
+        if isinstance(outcome, ActionError):
+            return outcome
+        return ActionResult(data={"lead": outcome.data})
+
+
+@hubspot.action("archive_lead")
+class ArchiveLeadAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        outcome = await _lead_request(context, "archive lead", f"/{inputs['lead_id']}", method="DELETE")
+        if isinstance(outcome, ActionError):
+            return outcome
+        return ActionResult(data={"archived": True})
+
+
+@hubspot.action("merge_leads")
+class MergeLeadsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        if inputs["primary_lead_id"] == inputs["lead_id_to_merge"]:
+            return ActionError(message="Select two different leads to merge.")
+        outcome = await _lead_request(
+            context,
+            "merge leads",
+            "/merge",
+            method="POST",
+            json={"primaryObjectId": inputs["primary_lead_id"], "objectIdToMerge": inputs["lead_id_to_merge"]},
+            may_duplicate=True,
+        )
+        if isinstance(outcome, ActionError):
+            return outcome
+        return ActionResult(data={"lead": outcome.data})
+
+
+@hubspot.action("batch_create_leads")
+class BatchCreateLeadsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        leads = [{**_new_lead(lead), "objectWriteTraceId": str(index)} for index, lead in enumerate(inputs["leads"])]
+        outcome = await _lead_request(
+            context, "batch create leads", "/batch/create", method="POST", json={"inputs": leads}, may_duplicate=True
+        )
+        if isinstance(outcome, ActionError):
+            return outcome
+        return ActionResult(data=outcome.data)
+
+
+@hubspot.action("batch_update_leads")
+class BatchUpdateLeadsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        leads = [
+            {"id": lead["lead_id"], "properties": lead["properties"], "objectWriteTraceId": str(index)}
+            for index, lead in enumerate(inputs["leads"])
+        ]
+        outcome = await _lead_request(
+            context, "batch update leads", "/batch/update", method="POST", json={"inputs": leads}
+        )
+        if isinstance(outcome, ActionError):
+            return outcome
+        return ActionResult(data=outcome.data)
+
+
+@hubspot.action("batch_archive_leads")
+class BatchArchiveLeadsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        outcome = await _lead_request(
+            context,
+            "batch archive leads",
+            "/batch/archive",
+            method="POST",
+            json={"inputs": [{"id": lead_id} for lead_id in inputs["lead_ids"]]},
+        )
+        if isinstance(outcome, ActionError):
+            return outcome
+        return ActionResult(data={"archived": True})
+
+
+@hubspot.action("remove_lead_association")
+class RemoveLeadAssociationAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        outcome = await _lead_request(
+            context,
+            "remove lead association",
+            f"/{inputs['lead_id']}/associations/{inputs['to_object_type']}/{inputs['to_object_id']}/{inputs['association_type_id']}",
+            method="DELETE",
+        )
+        if isinstance(outcome, ActionError):
+            return outcome
+        return ActionResult(data={"removed": True})

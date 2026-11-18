@@ -36,6 +36,8 @@ The integration automatically requests the following HubSpot permissions:
 - `crm.objects.contacts.write` - Write access to contact records
 - `crm.objects.deals.read` - Read access to deal records
 - `crm.objects.deals.write` - Write access to deal records
+- `crm.objects.leads.read` - List, get, search and batch read Lead records
+- `crm.objects.leads.write` - Create, update, archive, merge and manage Lead associations
 - `crm.objects.owners.read` - Read access to owner information
 - `crm.lists.read` - Read access to lists/segments and their memberships
 - `crm.lists.write` - Add or remove contacts from manual or snapshot lists
@@ -166,6 +168,26 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **Inputs:**
   - `limit` (optional): Number of contacts to retrieve (default: 100, max: 100)
 - **Outputs:** Array of recent contacts with pagination metadata
+
+### Lead Management
+
+[HubSpot Lead records](https://developers.hubspot.com/docs/api-reference/latest/crm/objects/leads/guide) require Sales Hub Professional or Enterprise with Leads enabled. Reconnect HubSpot to authorize the Lead scopes.
+
+| Action | Inputs and result |
+| --- | --- |
+| `list_leads` | Returns a page of Leads and the next `after` cursor, or null at the end. Optionally request properties, property history, associations or archived records. |
+| `get_lead` | Fetches a Lead by record ID, with the same record options as List Leads. |
+| `create_lead` | Creates a Lead from a name, an existing contact ID and optional properties. |
+| `update_lead` | Updates the supplied properties on one Lead. |
+| `archive_lead` | Moves a Lead to HubSpot's recycling bin. |
+| `merge_leads` | Merges a secondary Lead into a primary Lead. Use the ID in the returned record for future requests. |
+| `batch_create_leads`, `batch_update_leads`, `batch_archive_leads` | Creates, updates or archives up to 100 Leads. Batch create and update return HubSpot's results and any per-record errors. |
+| `remove_lead_association` | Removes a specified association type between a Lead and a linked record. Removing the last primary association deletes the Lead in HubSpot. |
+
+Use internal property names and string values for writes. An empty string clears a property.
+For batch create and update, inspect the returned status and errors before retrying. HubSpot can return partial success.
+Use `object_type: leads` with `search_crm_objects`, `get_crm_objects` for batch reads, and `get_object_properties`.
+Use `get_association_labels` and `create_association` to find association types and link existing Lead records.
 
 ### Note Management (Engagements)
 
