@@ -88,6 +88,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 [elevenlabs](elevenlabs): Text-to-speech and speech-to-text integration with ElevenLabs API for voice generation, audio transcription, and audio management. Supports converting text to realistic speech with customizable voice settings, transcribing audio/video files using ElevenLabs Scribe with word-level timestamps and speaker diarization, browsing voices, managing transcripts, and monitoring subscription usage. Features 10 actions (1 paid, 9 free) covering text-to-speech, speech-to-text, voice management, history, and account. Uses API key authentication. Ideal for content creation, audiobook narration, voiceovers, meeting transcription, and automated audio/transcription workflows.
 
+### Figma
+
+[figma](figma): Read design files and nodes, export images, manage comments, browse team projects and file versions, and retrieve published components, component sets, and styles. Includes 21 actions and uses scoped Figma personal access token authentication.
+
 ### Fergus
 
 [fergus](fergus): Field service job management integration with Fergus for automating maintenance partner (MP) work order workflows. Supports creating draft and non-draft jobs from inbound work orders, updating and finalising draft jobs, retrieving completed job and invoice data for BCTI (Buyer Created Tax Invoice) reporting, searching customers and sites by name, and listing technicians for job assignment. Features Personal Access Token authentication, draft job workflow (create → update → finalise), pagination with cursor support, and free-text search across jobs, customers, and sites. Includes 9 actions covering the full inbound MP-to-Fergus flow and outbound Fergus-to-MP reporting flow. Ideal for trade and field service businesses managing work orders from multiple maintenance partners.
