@@ -175,17 +175,13 @@ inputs = {
     "date_ranges": [{"start_date": "7daysAgo", "end_date": "today"}],
     "dimensions": [{"name": "country"}],
     "metrics": [{"name": "activeUsers"}, {"name": "sessions"}],
-    "limit": 10
+    "limit": 10,
 }
 ```
 
 ### Realtime Data
 ```python
-inputs = {
-    "property_id": "123456789",
-    "dimensions": [{"name": "country"}],
-    "metrics": [{"name": "activeUsers"}]
-}
+inputs = {"property_id": "123456789", "dimensions": [{"name": "country"}], "metrics": [{"name": "activeUsers"}]}
 ```
 
 ### Multiple Reports
@@ -196,14 +192,14 @@ inputs = {
         {
             "date_ranges": [{"start_date": "7daysAgo", "end_date": "today"}],
             "dimensions": [{"name": "country"}],
-            "metrics": [{"name": "activeUsers"}]
+            "metrics": [{"name": "activeUsers"}],
         },
         {
             "date_ranges": [{"start_date": "30daysAgo", "end_date": "today"}],
             "dimensions": [{"name": "deviceCategory"}],
-            "metrics": [{"name": "sessions"}]
-        }
-    ]
+            "metrics": [{"name": "sessions"}],
+        },
+    ],
 }
 ```
 
