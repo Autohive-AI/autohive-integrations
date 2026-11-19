@@ -62,11 +62,11 @@ Example inputs:
 
 `create_comment` supports unpinned comments, canvas points `{x, y}`, node-relative points `{node_id, node_offset: {x, y}}`, and replies using a root `comment_id`. Region comments are not exposed. Only comments authored by the token owner can be deleted.
 
-Team library and version actions return one page per call. Supply **either** `before` **or** `after`, using the numeric cursor from the previous response. Team library cursors are in `meta.cursor`. Version responses preserve `pagination`; extract the numeric before/after value from its links and pass it to the next call. The integration never fetches arbitrary pagination URLs. File versions allow `page_size` 1â€“50; team libraries allow 1â€“1000. Other list endpoints above are unpaginated.
+Team library and version actions return one page per call. Supply **either** `before` **or** `after`, using the numeric cursor from the previous response. Team library cursors are in `meta.cursor`. Version responses preserve `pagination`; extract the numeric before/after value from its links and pass it to the next call. The integration never fetches arbitrary pagination URLs. File versions allow `page_size` 1-50; team libraries allow 1-1000. Other list endpoints above are unpaginated.
 
 `export_images` returns an `images` map of node IDs to temporary URLs; null values mean that node could not be rendered. `get_image_fills` returns image reference URLs under `meta.images`. Download exported files before their URLs expire; these actions return URLs rather than Autohive file objects.
 
-Published component/style endpoints return published assets, which may be empty even when unpublished assets exist in the document. General canvas creation and editing are not exposed by these REST actions. Project/folder browsing actions are intentionally omitted: Figma restricts `projects:read` and `folders:read` endpoints to private OAuth apps, so they cannot serve arbitrary Autohive customers.
+Published component/style endpoints return published assets, which may be empty even when unpublished assets exist in the document. General canvas creation and editing are not exposed by these REST actions. The old `GET /v1/teams/:team_id/projects` and `GET /v1/projects/:project_id/files` endpoints are deprecated in favour of `GET /v2/teams/:team_id/folders` and `GET /v2/folders/:folder_id/files`. Project/folder browsing actions are intentionally omitted: Figma restricts `projects:read` and `folders:read` endpoints to private OAuth apps, so they cannot serve arbitrary Autohive customers.
 
 ## API and troubleshooting
 
@@ -88,4 +88,36 @@ python ../autohive-integrations-tooling/scripts/check_code.py figma
 python -m pytest figma/ -v
 ```
 
-Unit tests mock SDK `FetchResponse` objects and require no credentials. Live API verification requires a working OAuth app, connected Figma account, and accessible resources; it is not part of the mocked suite.
+Unit tests mock SDK `FetchResponse` objects and require no credentials.
+
+## Live API tests
+
+The live suite covers all **17 read-only actions**, plus both write actions in a separate destructive lifecycle (19 actions total). Every response comes from the real Figma API. Identical reads are reused within one run to reduce rate-limit consumption. OAuth authentication uses `FIGMA_ACCESS_TOKEN`; TeamCity obtains it from the dedicated platform OAuth **Figma** test connection. Locally, set it in an uncommitted root `.env`. Refresh expired OAuth tokens through that connection; never commit tokens or paste them into PRs.
+
+Provision a dedicated Figma test account with all nine scopes and these fixtures:
+
+| Variable | Required fixture |
+|---|---|
+| `FIGMA_TEST_FILE_KEY` | A Figma Design file with a page, a small renderable frame, an image fill, a permanent seeded comment, and at least two saved versions. Create the frame before saving those versions. Publish at least one component, component set, and style from this file. |
+| `FIGMA_TEST_NODE_ID` | The small renderable frame's API ID, such as `1:2`. The suite exports and downloads PNG, JPG, SVG and PDF prefixes to check actual content. |
+| `FIGMA_TEST_TEAM_ID` | Team visible to that account with at least **two published components, two component sets, and two styles**, so page-size-one calls can prove pagination across distinct pages. |
+| `FIGMA_TEST_COMMENT_FILE_KEY` | A separate disposable file where the test account may create and delete comments; used only for destructive tests. |
+| `FIGMA_RUN_DESTRUCTIVE_TESTS` | Set to `1` only for a deliberate destructive run; unset or `0` otherwise. |
+
+Every variable, including `FIGMA_ACCESS_TOKEN`, has a blank entry in root `.env.example`. `figma/tests/teamcity.env` references fixture values through `ah:secret` so internal test fixture identifiers stay out of this public repository. An administrator must provision those references and connect the test OAuth account before TeamCity can execute the suite. Missing credentials/fixture variables skip cleanly locally; a configured but empty or unsuitable fixture fails with setup guidance instead of passing on empty lists.
+
+Run the safe read-only suite first:
+
+```powershell
+python -m pytest figma/tests/test_figma_integration.py -m "integration and not destructive" -v -rs
+```
+
+**Warning: the following command creates and deletes real comments and replies. Use only a dedicated disposable file.** It requires both the marker selection and `FIGMA_RUN_DESTRUCTIVE_TESTS=1` in local `.env` or the environment:
+
+```powershell
+python -m pytest figma/tests/test_figma_integration.py -m "integration and destructive" -v -rs
+```
+
+The lifecycle creates a unique root comment and reply, verifies both by listing, deletes them, and verifies absence. Fixture teardown tracks successful POSTs before SDK validation and retries cleanup for all remaining created IDs even if a test fails. Cleanup failures fail teardown and identify leftover comment IDs. It never deletes pre-existing comments. TeamCity's default read-only run excludes this lifecycle and keeps the opt-in disabled.
+
+Figma's API limits depend on the account's seat and resource plan. Use a test account with enough quota for repeated design reads and image exports; a 429 fails the test and surfaces the retry delay rather than being counted as a skip. Run against stable fixtures, without concurrent edits, comment changes or library publications. A collected or skipped suite is not evidence of live verification: record actual pass/skip counts and resolve missing fixtures before approval.
