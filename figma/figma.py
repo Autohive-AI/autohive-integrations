@@ -164,7 +164,18 @@ class GetImageFillsAction(ActionHandler):
 
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
         file_key = quote(inputs["file_key"], safe="")
-        return await _request(context, f"/files/{file_key}/images")
+        result = await _request(context, f"/files/{file_key}/images")
+        if isinstance(result, ActionError):
+            return result
+        data = result.data
+        # The endpoint reference uses images at the root, while Figma's OpenAPI
+        # definition wraps it in meta. Accept both and expose one stable output.
+        images = data.get("images")
+        if "images" not in data and isinstance(data.get("meta"), dict):
+            images = data["meta"].get("images")
+        if not isinstance(images, dict) or any(not isinstance(url, str) for url in images.values()):
+            return ActionError(message="Figma returned an invalid image-fill map.")
+        return ActionResult(data={**data, "images": images})
 
 
 @figma.action("list_comments")

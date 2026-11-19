@@ -27,7 +27,7 @@ Inputs marked required must be supplied. Other inputs are optional. Responses pr
 | `get_file_nodes` | `file_key` (required), `ids` (required), `version`, `depth`, `geometry`, `plugin_data` | `nodes` | `file_content:read` |
 | `get_file_metadata` | `file_key` (required) | `file` | `file_metadata:read` |
 | `export_images` | `file_key` (required), `ids` (required), `version`, `format`, `scale`, `svg_outline_text`, `svg_include_id`, `svg_include_node_id`, `svg_simplify_stroke`, `contents_only`, `use_absolute_bounds` | `images` | `file_content:read` |
-| `get_image_fills` | `file_key` (required) | `meta` | `file_content:read` |
+| `get_image_fills` | `file_key` (required) | `images` | `file_content:read` |
 | `list_comments` | `file_key` (required), `as_md` | `comments` | `file_comments:read` |
 | `create_comment` | `file_key` (required), `message` (required), `comment_id`, `client_meta` | `id`, `message` | `file_comments:write` |
 | `delete_comment` | `file_key` (required), `comment_id` (required) | `deleted` | `file_comments:write` |
@@ -64,7 +64,7 @@ Example inputs:
 
 Team library and version actions return one page per call. Supply **either** `before` **or** `after`, using the numeric cursor from the previous response. Team library cursors are in `meta.cursor`. Version responses preserve `pagination`; extract the numeric before/after value from its links and pass it to the next call. The integration never fetches arbitrary pagination URLs. File versions allow `page_size` 1-50; team libraries allow 1-1000. Other list endpoints above are unpaginated.
 
-`export_images` returns an `images` map of node IDs to temporary URLs; null values mean that node could not be rendered. `get_image_fills` returns image reference URLs under `meta.images`. Download exported files before their URLs expire; these actions return URLs rather than Autohive file objects.
+`export_images` returns an `images` map of node IDs to temporary URLs; null values mean that node could not be rendered. `get_image_fills` returns image reference URLs under `images`. Figma's endpoint reference and OpenAPI definition disagree about whether the provider wraps this map in `meta`; the action accepts both shapes, exposes a stable top-level `images` map, and retains provider metadata when present. The live image-fill test records the observed shape without printing URLs or credentials. Download exported files before their URLs expire; these actions return URLs rather than Autohive file objects.
 
 Published component/style endpoints return published assets, which may be empty even when unpublished assets exist in the document. General canvas creation and editing are not exposed by these REST actions. The old `GET /v1/teams/:team_id/projects` and `GET /v1/projects/:project_id/files` endpoints are deprecated in favour of `GET /v2/teams/:team_id/folders` and `GET /v2/folders/:folder_id/files`. Project/folder browsing actions are intentionally omitted: Figma restricts `projects:read` and `folders:read` endpoints to private OAuth apps, so they cannot serve arbitrary Autohive customers.
 
@@ -92,19 +92,36 @@ Unit tests mock SDK `FetchResponse` objects and require no credentials.
 
 ## Live API tests
 
-The live suite covers all **17 read-only actions**, plus both write actions in a separate destructive lifecycle (19 actions total). Every response comes from the real Figma API. Identical reads are reused within one run to reduce rate-limit consumption. OAuth authentication uses `FIGMA_ACCESS_TOKEN`; TeamCity obtains it from the dedicated platform OAuth **Figma** test connection. Locally, set it in an uncommitted root `.env`. Refresh expired OAuth tokens through that connection; never commit tokens or paste them into PRs.
+The live suite covers all **17 read-only actions**, plus both write actions in a separate destructive lifecycle (19 actions total). Every response comes from the real Figma API. Identical reads are reused within one run to reduce rate-limit consumption. OAuth authentication uses `FIGMA_ACCESS_TOKEN` (preferred over the optional local PAT); TeamCity obtains it from the dedicated platform OAuth **Figma** test connection. Locally, set it in an uncommitted root `.env`. Refresh expired OAuth tokens through that connection; never commit tokens or paste them into PRs.
+
+### While the SQL/platform PR is awaiting approval
+
+Local read-only API testing can proceed without deploying the platform changes. Generate a scoped personal access token in the dedicated Figma test account's **Settings > Security > Personal access tokens** and give it the nine scopes in the action table. Store it only in your uncommitted root `.env` as `FIGMA_PERSONAL_ACCESS_TOKEN`. Do not paste it into chat, source code or PRs. The test adapter uses `X-Figma-Token` for this local fallback; the shipped integration remains platform OAuth. If `FIGMA_ACCESS_TOKEN` is also set, the adapter uses OAuth instead, so it cannot silently hide a broken OAuth token.
+
+PAT tests can verify real API payloads and action behavior. They do **not** verify OAuth consent, callback routing, code exchange, platform credential storage or refresh. The unresolved callback redirect remains a separate investigation. Do not apply SQL, deploy, merge or change beta/production configuration to run these local checks. Destructive API tests still require separate approval before running, even when their fixture and opt-in are configured.
+
+TeamCity continues to use its platform OAuth connection; the local PAT option does not bypass its provider/secret setup. Its latest reported blockers are these fixture references, to be provisioned by the authorised owner for a dedicated test account:
+
+| Reference | Value needed (keep values out of PRs/chat) |
+|---|---|
+| `/integration-testing/figma/FIGMA_TEST_FILE_KEY` | Dedicated seeded design file key |
+| `/integration-testing/figma/FIGMA_TEST_NODE_ID` | Small renderable frame's colon-form node ID |
+| `/integration-testing/figma/FIGMA_TEST_TEAM_ID` | Dedicated team ID with published library fixtures |
+
+The runtime client-secret path `/integrations/figma/client-secret` is separate from these test-fixture references. Do not overwrite it with a PAT. Public OAuth availability, provider scopes and refresh still need approved platform work and a suitably configured Figma app. The script alone is not evidence that the callback redirect is fixed.
 
 Provision a dedicated Figma test account with all nine scopes and these fixtures:
 
 | Variable | Required fixture |
 |---|---|
+| `FIGMA_PERSONAL_ACCESS_TOKEN` | Optional local scoped PAT when OAuth is unavailable; never a client secret. Omit it from active TeamCity configuration. |
 | `FIGMA_TEST_FILE_KEY` | A Figma Design file with a page, a small renderable frame, an image fill, a permanent seeded comment, and at least two saved versions. Create the frame before saving those versions. Publish at least one component, component set, and style from this file. |
 | `FIGMA_TEST_NODE_ID` | The small renderable frame's API ID, such as `1:2`. The suite exports and downloads PNG, JPG, SVG and PDF prefixes to check actual content. |
 | `FIGMA_TEST_TEAM_ID` | Team visible to that account with at least **two published components, two component sets, and two styles**, so page-size-one calls can prove pagination across distinct pages. |
 | `FIGMA_TEST_COMMENT_FILE_KEY` | A separate disposable file where the test account may create and delete comments; used only for destructive tests. |
 | `FIGMA_RUN_DESTRUCTIVE_TESTS` | Set to `1` only for a deliberate destructive run; unset or `0` otherwise. |
 
-Every variable, including `FIGMA_ACCESS_TOKEN`, has a blank entry in root `.env.example`. `figma/tests/teamcity.env` references fixture values through `ah:secret` so internal test fixture identifiers stay out of this public repository. An administrator must provision those references and connect the test OAuth account before TeamCity can execute the suite. Missing credentials/fixture variables skip cleanly locally; a configured but empty or unsuitable fixture fails with setup guidance instead of passing on empty lists.
+Every variable, including `FIGMA_ACCESS_TOKEN` and `FIGMA_PERSONAL_ACCESS_TOKEN`, has a blank entry in root `.env.example`. `figma/tests/teamcity.env` references fixture values through `ah:secret` so internal test fixture identifiers stay out of this public repository. An administrator must provision those references and connect the test OAuth account before TeamCity can execute the suite. Missing credentials/fixture variables skip cleanly locally; a configured but empty or unsuitable fixture fails with setup guidance instead of passing on empty lists.
 
 Run the safe read-only suite first:
 

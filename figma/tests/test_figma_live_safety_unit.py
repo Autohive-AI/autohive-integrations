@@ -19,6 +19,7 @@ class CommentTransport:
         self.deleted = []
         self.failed_delete = failed_delete
         self.next_id = 1
+        self.last_headers = None
 
     async def __aenter__(self):
         return self
@@ -27,6 +28,7 @@ class CommentTransport:
         return False
 
     def request(self, method, url, **kwargs):
+        self.last_headers = kwargs["headers"]
         status = 200
         if method == "POST":
             comment_id = str(self.next_id)
@@ -103,6 +105,32 @@ async def test_live_writes_require_opt_in_and_marker(monkeypatch, enabled, marke
     finally:
         await generator.aclose()
     assert not transport.comments
+
+
+async def test_local_pat_fallback_does_not_use_oauth_bearer_header(monkeypatch):
+    transport = CommentTransport()
+    generator, values = harness(monkeypatch, transport, enabled=False)
+    values["FIGMA_PERSONAL_ACCESS_TOKEN"] = values.pop("FIGMA_ACCESS_TOKEN")
+    context = await anext(generator)
+    try:
+        await context.fetch("https://api.figma.com/v1/files/TestFile/comments")
+    finally:
+        await generator.aclose()
+    assert transport.last_headers["X-Figma-Token"] == "offline-placeholder"
+    assert "Authorization" not in transport.last_headers
+
+
+async def test_oauth_takes_precedence_over_optional_local_pat(monkeypatch):
+    transport = CommentTransport()
+    generator, values = harness(monkeypatch, transport, enabled=False)
+    values["FIGMA_PERSONAL_ACCESS_TOKEN"] = "unused-placeholder"  # nosec B105
+    context = await anext(generator)
+    try:
+        await context.fetch("https://api.figma.com/v1/files/TestFile/comments")
+    finally:
+        await generator.aclose()
+    assert transport.last_headers["Authorization"] == "Bearer offline-placeholder"
+    assert "X-Figma-Token" not in transport.last_headers
 
 
 async def test_comment_lifecycle_deletes_only_its_own_records(monkeypatch):

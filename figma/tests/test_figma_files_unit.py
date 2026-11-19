@@ -9,6 +9,34 @@ from figma.figma import figma
 pytestmark = pytest.mark.unit
 
 
+@pytest.mark.parametrize("wrapped", [False, True])
+async def test_image_fills_accepts_both_documented_shapes(mock_context, wrapped):
+    images = {"image-reference": "https://example.com/fill.png"}
+    payload = {"meta": {"images": images}, "status": 200, "error": False} if wrapped else {"images": images}
+    mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=payload)
+    result = await figma.execute_action("get_image_fills", {"file_key": "AbC123"}, mock_context)
+    assert result.type == ResultType.ACTION
+    assert result.result.data["images"] == images
+    if wrapped:
+        assert result.result.data["meta"] == payload["meta"]
+    assert mock_context.fetch.call_args.args == ("https://api.figma.com/v1/files/AbC123/images",)
+
+
+@pytest.mark.parametrize("payload", [{}, {"meta": {}}, {"images": []}, {"images": {"ref": 42}}])
+async def test_image_fills_rejects_missing_or_malformed_maps(mock_context, payload):
+    mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=payload)
+    result = await figma.execute_action("get_image_fills", {"file_key": "AbC123"}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "invalid image-fill map" in result.result.message
+
+
+async def test_image_fills_keeps_api_errors(mock_context):
+    mock_context.fetch.return_value = FetchResponse(status=403, headers={}, data={})
+    result = await figma.execute_action("get_image_fills", {"file_key": "AbC123"}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "403" in result.result.message
+
+
 async def test_file_options_and_document_preserved(mock_context):
     data = {"name": "Design system", "document": {"id": "0:0", "type": "DOCUMENT"}, "branches": []}
     mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=data)

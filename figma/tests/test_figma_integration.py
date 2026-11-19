@@ -1,7 +1,8 @@
 """Live Figma API tests. See README for fixture setup and safe/destructive commands.
 
 All HTTP responses come from Figma; no response payloads are mocked. The
-context adapter supplies the same OAuth Bearer header as the SDK platform layer.
+context adapter supplies the SDK platform OAuth Bearer header, or uses
+X-Figma-Token for the documented local-only personal access token fallback.
 """
 
 import asyncio
@@ -46,7 +47,13 @@ def fixture_value(env_credentials):
 
 @pytest.fixture
 async def live_context(fixture_value, env_credentials, request, api_budget):
-    token = fixture_value("FIGMA_ACCESS_TOKEN")
+    oauth_token = env_credentials("FIGMA_ACCESS_TOKEN")
+    personal_token = env_credentials("FIGMA_PERSONAL_ACCESS_TOKEN")
+    token = oauth_token or personal_token
+    if not token:
+        pytest.skip("Configure FIGMA_ACCESS_TOKEN or a local FIGMA_PERSONAL_ACCESS_TOKEN for live API tests")
+    token_header = "Authorization" if oauth_token else "X-Figma-Token"
+    token_value = f"Bearer {token}" if oauth_token else token
     created_comments = []
     allow_writes = (
         request.node.get_closest_marker("destructive") is not None
@@ -71,10 +78,14 @@ async def live_context(fixture_value, env_credentials, request, api_budget):
                 if delay > 0:
                     await asyncio.sleep(delay)
                 api_budget["last_design_read"] = time.monotonic()
-            merged_headers = {**(headers or {}), "Authorization": f"Bearer {token}"}
+            merged_headers = {**(headers or {}), token_header: token_value}
             async with session.request(method, url, headers=merged_headers, params=params, json=json) as response:
                 text = await response.text()
                 data = jsonlib.loads(text) if text else None
+                if method == "GET" and len(segments) == 4 and segments[-1] == "images":
+                    context.image_fill_response_shape = (
+                        "images" if isinstance(data, dict) and "images" in data else "meta.images"
+                    )
                 # Register successful writes before SDK output validation or test assertions.
                 # This lets teardown clean up even if an assertion later fails.
                 if method == "POST" and response.status < 300 and isinstance(data, dict) and data.get("id"):
@@ -228,8 +239,9 @@ class TestFiles:
                 prefix = await response.content.read(4096)
                 assert prefix.startswith(signature) if format != "svg" else signature in prefix
 
-    async def test_image_fills_have_downloadable_content(self, call, file_key):
-        images = (await call("get_image_fills", {"file_key": file_key}))["meta"]["images"]
+    async def test_image_fills_have_downloadable_content(self, call, file_key, live_context, record_property):
+        images = (await call("get_image_fills", {"file_key": file_key}))["images"]
+        record_property("figma_image_fill_response_shape", live_context.image_fill_response_shape)
         assert images, "Seed an image fill in FIGMA_TEST_FILE_KEY"
         reference, url = next(iter(images.items()))
         assert reference and url.startswith("https://")

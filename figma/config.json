@@ -1,6 +1,6 @@
 {
     "name": "figma",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "display_name": "Figma",
     "description": "Read Figma design files, export images, manage comments, and browse published libraries using public OAuth.",
     "entry_point": "figma.py",
@@ -358,24 +358,20 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
+                    "images": {
+                        "type": "object",
+                        "description": "Image reference IDs mapped to temporary URLs, normalised from either Figma response shape.",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    },
                     "meta": {
                         "type": "object",
-                        "description": "Figma response object; nested fields are preserved.",
-                        "properties": {
-                            "images": {
-                                "type": "object",
-                                "additionalProperties": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        "required": [
-                            "images"
-                        ]
+                        "description": "Original metadata when provided by Figma."
                     }
                 },
                 "required": [
-                    "meta"
+                    "images"
                 ],
                 "additionalProperties": true
             }

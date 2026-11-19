@@ -30,7 +30,7 @@ CASES = [
         },
     ),
     ("export_images", {"file_key": "AbC123", "ids": ["1:2"]}, "/images/AbC123", {"images": {"1:2": None}, "err": None}),
-    ("get_image_fills", {"file_key": "AbC123"}, "/files/AbC123/images", {"meta": {"images": {}}}),
+    ("get_image_fills", {"file_key": "AbC123"}, "/files/AbC123/images", {"images": {}}),
     ("list_comments", {"file_key": "AbC123"}, "/files/AbC123/comments", {"comments": []}),
     (
         "create_comment",
