@@ -522,8 +522,10 @@ Read the content of a OneDrive file. Office documents (`.docx`, `.xlsx`, `.pptx`
 - `file_id` (required): File ID (from `search_onedrive_files` or `list_files`)
 
 **Outputs:**
-- `file`: Object with `content` (base64 encoded), `name`, `contentType` (`application/pdf` for converted documents). Converted filenames end in `.pdf`.
-- `metadata`: File metadata with `id`, original `name`, `size`, `mimeType`, `webUrl`, and `convertedToPdf`
+- `file`: Object with `content` (base64 encoded), `name`, `contentType` (`application/pdf` for converted documents). Converted filenames end in `.pdf`. Left out when the file is more than 4,000,000 bytes.
+- `metadata`: File metadata with `id`, original `name`, `size`, `mimeType`, `webUrl`, `downloadUrl`, and `convertedToPdf`
+
+`downloadUrl` is Microsoft Graph's pre-authenticated URL for the original file. Anyone with the URL can download the file without signing in until it expires, which Microsoft says can be within minutes. A file larger than 4,000,000 bytes is returned through `downloadUrl` only, because the platform limits an action's response to 6 MB.
 
 Content download failures return an action error instead of a successful empty file.
 
@@ -642,8 +644,10 @@ Read the content of a SharePoint document. Office documents are automatically co
 - `drive_id` (optional): ID of the specific document library containing the file. If not provided, uses the site's default drive.
 
 **Outputs:**
-- `file`: Object with `content` (base64 encoded), `name`, `contentType`; converted filenames end in `.pdf`
-- `metadata`: File metadata with `id`, original `name`, `size`, `mimeType`, `webUrl`, `convertedToPdf`, `site_id`, and `drive_id`
+- `file`: Object with `content` (base64 encoded), `name`, `contentType`; converted filenames end in `.pdf`. Left out when the file is more than 4,000,000 bytes.
+- `metadata`: File metadata with `id`, original `name`, `size`, `mimeType`, `webUrl`, `downloadUrl`, `convertedToPdf`, `site_id`, and `drive_id`
+
+`downloadUrl` works as it does for `read_onedrive_file_content`.
 
 Content download failures return an action error instead of a successful empty file.
 

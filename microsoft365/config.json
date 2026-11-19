@@ -1,6 +1,6 @@
 {
   "name": "Microsoft Copilot 365",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "Microsoft Copilot 365 integration for Outlook, OneDrive, Calendar, SharePoint, and intelligent meeting scheduling",
   "entry_point": "microsoft365.py",
   "auth": {
@@ -1185,7 +1185,8 @@
               "content",
               "name",
               "contentType"
-            ]
+            ],
+            "description": "The file. Left out when it is more than 4,000,000 bytes: use metadata.downloadUrl instead."
           },
           "metadata": {
             "type": "object",
@@ -1210,9 +1211,13 @@
                 "type": "string",
                 "description": "Web URL to access the file"
               },
+              "downloadUrl": {
+                "type": "string",
+                "description": "Pre-authenticated URL that downloads the original file without sign-in. It expires after a short time (Microsoft says minutes to an hour), so use it straight away. Empty if Microsoft Graph returned none."
+              },
               "convertedToPdf": {
                 "type": "boolean",
-                "description": "Whether Microsoft Graph converted the original document to PDF"
+                "description": "Whether the returned file is a PDF that Microsoft Graph converted from the original document"
               }
             },
             "required": [
@@ -1222,7 +1227,6 @@
           }
         },
         "required": [
-          "file",
           "metadata"
         ]
       }
@@ -2458,7 +2462,8 @@
               "content",
               "name",
               "contentType"
-            ]
+            ],
+            "description": "The file. Left out when it is more than 4,000,000 bytes: use metadata.downloadUrl instead."
           },
           "metadata": {
             "type": "object",
@@ -2483,6 +2488,10 @@
                 "type": "string",
                 "description": "Web URL to access the file"
               },
+              "downloadUrl": {
+                "type": "string",
+                "description": "Pre-authenticated URL that downloads the original file without sign-in. It expires after a short time (Microsoft says minutes to an hour), so use it straight away. Empty if Microsoft Graph returned none."
+              },
               "site_id": {
                 "type": "string",
                 "description": "The SharePoint site ID"
@@ -2493,7 +2502,7 @@
               },
               "convertedToPdf": {
                 "type": "boolean",
-                "description": "Whether Microsoft Graph converted the original document to PDF"
+                "description": "Whether the returned file is a PDF that Microsoft Graph converted from the original document"
               }
             },
             "required": [
@@ -2504,7 +2513,6 @@
           }
         },
         "required": [
-          "file",
           "metadata"
         ]
       }
