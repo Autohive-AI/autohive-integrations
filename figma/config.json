@@ -1,0 +1,1103 @@
+{
+    "name": "figma",
+    "version": "1.1.1",
+    "display_name": "Figma",
+    "description": "Read Figma design files, export images, manage comments, and browse published libraries using public OAuth.",
+    "entry_point": "figma.py",
+    "supports_billing": false,
+    "auth": {
+        "type": "platform",
+        "provider": "Figma",
+        "scopes": [
+            "current_user:read",
+            "file_comments:read",
+            "file_comments:write",
+            "file_content:read",
+            "file_metadata:read",
+            "file_versions:read",
+            "library_content:read",
+            "team_library_content:read",
+            "library_assets:read"
+        ]
+    },
+    "actions": {
+        "get_me": {
+            "display_name": "Get Me",
+            "description": "Get the authenticated Figma user.",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "User ID."
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "Email."
+                    },
+                    "handle": {
+                        "type": "string",
+                        "description": "Display name."
+                    }
+                },
+                "required": [
+                    "id",
+                    "email",
+                    "handle"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "get_file": {
+            "display_name": "Get File",
+            "description": "Read a file document and its metadata.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file_key": {
+                        "type": "string",
+                        "description": "File or branch key from a Figma URL (not the entire URL).",
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9_-]+$"
+                    },
+                    "version": {
+                        "type": "string",
+                        "description": "Historical file version ID.",
+                        "minLength": 1
+                    },
+                    "depth": {
+                        "type": "integer",
+                        "description": "Maximum traversal depth.",
+                        "minimum": 1
+                    },
+                    "geometry": {
+                        "type": "string",
+                        "description": "Include vector paths.",
+                        "enum": [
+                            "paths"
+                        ]
+                    },
+                    "plugin_data": {
+                        "type": "string",
+                        "description": "Comma-separated plugin IDs and/or shared.",
+                        "minLength": 1
+                    },
+                    "ids": {
+                        "type": "array",
+                        "description": "Node IDs, for example [\"1:2\", \"3:4\"].",
+                        "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "^[^,]+$"
+                        },
+                        "minItems": 1
+                    },
+                    "branch_data": {
+                        "type": "boolean",
+                        "description": "Include branch metadata."
+                    }
+                },
+                "required": [
+                    "file_key"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "File name."
+                    },
+                    "document": {
+                        "type": "object",
+                        "description": "Figma response object; nested fields are preserved."
+                    }
+                },
+                "required": [
+                    "name",
+                    "document"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "get_file_nodes": {
+            "display_name": "Get File Nodes",
+            "description": "Read selected nodes; missing nodes may have null values.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file_key": {
+                        "type": "string",
+                        "description": "File or branch key from a Figma URL (not the entire URL).",
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9_-]+$"
+                    },
+                    "ids": {
+                        "type": "array",
+                        "description": "Node IDs, for example [\"1:2\", \"3:4\"].",
+                        "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "^[^,]+$"
+                        },
+                        "minItems": 1
+                    },
+                    "version": {
+                        "type": "string",
+                        "description": "Historical file version ID.",
+                        "minLength": 1
+                    },
+                    "depth": {
+                        "type": "integer",
+                        "description": "Maximum traversal depth.",
+                        "minimum": 1
+                    },
+                    "geometry": {
+                        "type": "string",
+                        "description": "Include vector paths.",
+                        "enum": [
+                            "paths"
+                        ]
+                    },
+                    "plugin_data": {
+                        "type": "string",
+                        "description": "Comma-separated plugin IDs and/or shared.",
+                        "minLength": 1
+                    }
+                },
+                "required": [
+                    "file_key",
+                    "ids"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "nodes": {
+                        "type": "object",
+                        "description": "Figma response object; nested fields are preserved."
+                    }
+                },
+                "required": [
+                    "nodes"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "get_file_metadata": {
+            "display_name": "Get File Metadata",
+            "description": "Read file metadata without the full document.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file_key": {
+                        "type": "string",
+                        "description": "File or branch key from a Figma URL (not the entire URL).",
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9_-]+$"
+                    }
+                },
+                "required": [
+                    "file_key"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "description": "File metadata including name, creator, editorType, and last_touched_at.",
+                        "properties": {
+                            "name": {
+                                "type": "string"
+                            },
+                            "last_touched_at": {
+                                "type": "string"
+                            },
+                            "creator": {
+                                "type": "object"
+                            },
+                            "editorType": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "name",
+                            "last_touched_at",
+                            "creator",
+                            "editorType"
+                        ]
+                    }
+                },
+                "required": [
+                    "file"
+                ]
+            }
+        },
+        "export_images": {
+            "display_name": "Export Images",
+            "description": "Render nodes as temporary image URLs; no binary download.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file_key": {
+                        "type": "string",
+                        "description": "File or branch key from a Figma URL (not the entire URL).",
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9_-]+$"
+                    },
+                    "ids": {
+                        "type": "array",
+                        "description": "Node IDs, for example [\"1:2\", \"3:4\"].",
+                        "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "^[^,]+$"
+                        },
+                        "minItems": 1
+                    },
+                    "version": {
+                        "type": "string",
+                        "description": "Historical file version ID.",
+                        "minLength": 1
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "Export format; Figma defaults to png.",
+                        "enum": [
+                            "png",
+                            "jpg",
+                            "svg",
+                            "pdf"
+                        ]
+                    },
+                    "scale": {
+                        "type": "number",
+                        "description": "Export scale.",
+                        "minimum": 0.01,
+                        "maximum": 4
+                    },
+                    "svg_outline_text": {
+                        "type": "boolean",
+                        "description": "Svg outline text."
+                    },
+                    "svg_include_id": {
+                        "type": "boolean",
+                        "description": "Svg include id."
+                    },
+                    "svg_include_node_id": {
+                        "type": "boolean",
+                        "description": "Svg include node id."
+                    },
+                    "svg_simplify_stroke": {
+                        "type": "boolean",
+                        "description": "Svg simplify stroke."
+                    },
+                    "contents_only": {
+                        "type": "boolean",
+                        "description": "Contents only."
+                    },
+                    "use_absolute_bounds": {
+                        "type": "boolean",
+                        "description": "Use absolute bounds."
+                    }
+                },
+                "required": [
+                    "file_key",
+                    "ids"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "images": {
+                        "type": "object",
+                        "description": "Map of node IDs to temporary image URLs or null for unrenderable nodes.",
+                        "additionalProperties": {
+                            "type": [
+                                "string",
+                                "null"
+                            ]
+                        }
+                    }
+                },
+                "required": [
+                    "images"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "get_image_fills": {
+            "display_name": "Get Image Fills",
+            "description": "Get temporary URLs for image fills used in a file.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file_key": {
+                        "type": "string",
+                        "description": "File or branch key from a Figma URL (not the entire URL).",
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9_-]+$"
+                    }
+                },
+                "required": [
+                    "file_key"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "images": {
+                        "type": "object",
+                        "description": "Image reference IDs mapped to temporary URLs, normalised from either Figma response shape.",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    },
+                    "meta": {
+                        "type": "object",
+                        "description": "Original metadata when provided by Figma."
+                    }
+                },
+                "required": [
+                    "images"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "list_comments": {
+            "display_name": "List Comments",
+            "description": "List file comments and replies.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file_key": {
+                        "type": "string",
+                        "description": "File or branch key from a Figma URL (not the entire URL).",
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9_-]+$"
+                    },
+                    "as_md": {
+                        "type": "boolean",
+                        "description": "Return comment text as Markdown."
+                    }
+                },
+                "required": [
+                    "file_key"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "comments": {
+                        "type": "array",
+                        "description": "Returned records.",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                },
+                "required": [
+                    "comments"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "create_comment": {
+            "display_name": "Create Comment",
+            "description": "Post a comment or reply to a root comment.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file_key": {
+                        "type": "string",
+                        "description": "File or branch key from a Figma URL (not the entire URL).",
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9_-]+$"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Comment text.",
+                        "minLength": 1
+                    },
+                    "comment_id": {
+                        "type": "string",
+                        "description": "Root comment ID when replying.",
+                        "minLength": 1
+                    },
+                    "client_meta": {
+                        "description": "Canvas position or node-relative position. Omit for an unpinned comment.",
+                        "oneOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "x": {
+                                        "type": "number"
+                                    },
+                                    "y": {
+                                        "type": "number"
+                                    }
+                                },
+                                "required": [
+                                    "x",
+                                    "y"
+                                ],
+                                "additionalProperties": false
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "node_id": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "node_offset": {
+                                        "type": "object",
+                                        "properties": {
+                                            "x": {
+                                                "type": "number"
+                                            },
+                                            "y": {
+                                                "type": "number"
+                                            }
+                                        },
+                                        "required": [
+                                            "x",
+                                            "y"
+                                        ],
+                                        "additionalProperties": false
+                                    }
+                                },
+                                "required": [
+                                    "node_id",
+                                    "node_offset"
+                                ],
+                                "additionalProperties": false
+                            }
+                        ]
+                    }
+                },
+                "required": [
+                    "file_key",
+                    "message"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Created comment ID."
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Posted text."
+                    }
+                },
+                "required": [
+                    "id",
+                    "message"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "delete_comment": {
+            "display_name": "Delete Comment",
+            "description": "Delete a comment authored by the token owner.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file_key": {
+                        "type": "string",
+                        "description": "File or branch key from a Figma URL (not the entire URL).",
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9_-]+$"
+                    },
+                    "comment_id": {
+                        "type": "string",
+                        "description": "ID of your own comment to delete.",
+                        "minLength": 1
+                    }
+                },
+                "required": [
+                    "file_key",
+                    "comment_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "deleted": {
+                        "type": "boolean",
+                        "description": "True when deletion succeeds."
+                    }
+                },
+                "required": [
+                    "deleted"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "list_file_versions": {
+            "display_name": "List File Versions",
+            "description": "List one page of file versions; pagination links are preserved.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file_key": {
+                        "type": "string",
+                        "description": "File or branch key from a Figma URL (not the entire URL).",
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9_-]+$"
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Maximum items per page.",
+                        "minimum": 1,
+                        "maximum": 50
+                    },
+                    "before": {
+                        "type": "integer",
+                        "description": "Cursor from the preceding response; use before or after.",
+                        "minimum": 0
+                    },
+                    "after": {
+                        "type": "integer",
+                        "description": "Cursor from the preceding response; use before or after.",
+                        "minimum": 0
+                    }
+                },
+                "required": [
+                    "file_key"
+                ],
+                "additionalProperties": false,
+                "not": {
+                    "required": [
+                        "before",
+                        "after"
+                    ]
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "versions": {
+                        "type": "array",
+                        "description": "Returned records.",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "pagination": {
+                        "type": "object",
+                        "description": "Links to previous/next pages when available."
+                    }
+                },
+                "required": [
+                    "versions"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "list_file_components": {
+            "display_name": "List File Components",
+            "description": "List published components in a file.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file_key": {
+                        "type": "string",
+                        "description": "File or branch key from a Figma URL (not the entire URL).",
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9_-]+$"
+                    }
+                },
+                "required": [
+                    "file_key"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "meta": {
+                        "type": "object",
+                        "description": "Figma response object; nested fields are preserved.",
+                        "properties": {
+                            "components": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object"
+                                }
+                            },
+                            "cursor": {
+                                "type": "object",
+                                "properties": {
+                                    "before": {
+                                        "type": "integer"
+                                    },
+                                    "after": {
+                                        "type": "integer"
+                                    }
+                                }
+                            }
+                        },
+                        "required": [
+                            "components"
+                        ]
+                    }
+                },
+                "required": [
+                    "meta"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "list_team_components": {
+            "display_name": "List Team Components",
+            "description": "List published components in a team (one page).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "team_id": {
+                        "type": "string",
+                        "description": "Team ID from the team URL.",
+                        "minLength": 1,
+                        "pattern": "^[0-9]+$"
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Maximum items per page.",
+                        "minimum": 1,
+                        "maximum": 1000
+                    },
+                    "before": {
+                        "type": "integer",
+                        "description": "Cursor from the preceding response; use before or after.",
+                        "minimum": 0
+                    },
+                    "after": {
+                        "type": "integer",
+                        "description": "Cursor from the preceding response; use before or after.",
+                        "minimum": 0
+                    }
+                },
+                "required": [
+                    "team_id"
+                ],
+                "additionalProperties": false,
+                "not": {
+                    "required": [
+                        "before",
+                        "after"
+                    ]
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "meta": {
+                        "type": "object",
+                        "description": "Figma response object; nested fields are preserved.",
+                        "properties": {
+                            "components": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object"
+                                }
+                            },
+                            "cursor": {
+                                "type": "object",
+                                "properties": {
+                                    "before": {
+                                        "type": "integer"
+                                    },
+                                    "after": {
+                                        "type": "integer"
+                                    }
+                                }
+                            }
+                        },
+                        "required": [
+                            "components"
+                        ]
+                    }
+                },
+                "required": [
+                    "meta"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "get_component": {
+            "display_name": "Get Component",
+            "description": "Get a published component by its asset key.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "key": {
+                        "type": "string",
+                        "description": "Published asset key, not a node ID.",
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9_-]+$"
+                    }
+                },
+                "required": [
+                    "key"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "meta": {
+                        "type": "object",
+                        "description": "Figma response object; nested fields are preserved."
+                    }
+                },
+                "required": [
+                    "meta"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "list_file_component_sets": {
+            "display_name": "List File Component Sets",
+            "description": "List published component sets in a file.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file_key": {
+                        "type": "string",
+                        "description": "File or branch key from a Figma URL (not the entire URL).",
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9_-]+$"
+                    }
+                },
+                "required": [
+                    "file_key"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "meta": {
+                        "type": "object",
+                        "description": "Figma response object; nested fields are preserved.",
+                        "properties": {
+                            "component_sets": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object"
+                                }
+                            },
+                            "cursor": {
+                                "type": "object",
+                                "properties": {
+                                    "before": {
+                                        "type": "integer"
+                                    },
+                                    "after": {
+                                        "type": "integer"
+                                    }
+                                }
+                            }
+                        },
+                        "required": [
+                            "component_sets"
+                        ]
+                    }
+                },
+                "required": [
+                    "meta"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "list_team_component_sets": {
+            "display_name": "List Team Component Sets",
+            "description": "List published component sets in a team (one page).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "team_id": {
+                        "type": "string",
+                        "description": "Team ID from the team URL.",
+                        "minLength": 1,
+                        "pattern": "^[0-9]+$"
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Maximum items per page.",
+                        "minimum": 1,
+                        "maximum": 1000
+                    },
+                    "before": {
+                        "type": "integer",
+                        "description": "Cursor from the preceding response; use before or after.",
+                        "minimum": 0
+                    },
+                    "after": {
+                        "type": "integer",
+                        "description": "Cursor from the preceding response; use before or after.",
+                        "minimum": 0
+                    }
+                },
+                "required": [
+                    "team_id"
+                ],
+                "additionalProperties": false,
+                "not": {
+                    "required": [
+                        "before",
+                        "after"
+                    ]
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "meta": {
+                        "type": "object",
+                        "description": "Figma response object; nested fields are preserved.",
+                        "properties": {
+                            "component_sets": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object"
+                                }
+                            },
+                            "cursor": {
+                                "type": "object",
+                                "properties": {
+                                    "before": {
+                                        "type": "integer"
+                                    },
+                                    "after": {
+                                        "type": "integer"
+                                    }
+                                }
+                            }
+                        },
+                        "required": [
+                            "component_sets"
+                        ]
+                    }
+                },
+                "required": [
+                    "meta"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "get_component_set": {
+            "display_name": "Get Component Set",
+            "description": "Get a published component set by its asset key.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "key": {
+                        "type": "string",
+                        "description": "Published asset key, not a node ID.",
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9_-]+$"
+                    }
+                },
+                "required": [
+                    "key"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "meta": {
+                        "type": "object",
+                        "description": "Figma response object; nested fields are preserved."
+                    }
+                },
+                "required": [
+                    "meta"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "list_file_styles": {
+            "display_name": "List File Styles",
+            "description": "List published styles in a file.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file_key": {
+                        "type": "string",
+                        "description": "File or branch key from a Figma URL (not the entire URL).",
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9_-]+$"
+                    }
+                },
+                "required": [
+                    "file_key"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "meta": {
+                        "type": "object",
+                        "description": "Figma response object; nested fields are preserved.",
+                        "properties": {
+                            "styles": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object"
+                                }
+                            },
+                            "cursor": {
+                                "type": "object",
+                                "properties": {
+                                    "before": {
+                                        "type": "integer"
+                                    },
+                                    "after": {
+                                        "type": "integer"
+                                    }
+                                }
+                            }
+                        },
+                        "required": [
+                            "styles"
+                        ]
+                    }
+                },
+                "required": [
+                    "meta"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "list_team_styles": {
+            "display_name": "List Team Styles",
+            "description": "List published styles in a team (one page).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "team_id": {
+                        "type": "string",
+                        "description": "Team ID from the team URL.",
+                        "minLength": 1,
+                        "pattern": "^[0-9]+$"
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Maximum items per page.",
+                        "minimum": 1,
+                        "maximum": 1000
+                    },
+                    "before": {
+                        "type": "integer",
+                        "description": "Cursor from the preceding response; use before or after.",
+                        "minimum": 0
+                    },
+                    "after": {
+                        "type": "integer",
+                        "description": "Cursor from the preceding response; use before or after.",
+                        "minimum": 0
+                    }
+                },
+                "required": [
+                    "team_id"
+                ],
+                "additionalProperties": false,
+                "not": {
+                    "required": [
+                        "before",
+                        "after"
+                    ]
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "meta": {
+                        "type": "object",
+                        "description": "Figma response object; nested fields are preserved.",
+                        "properties": {
+                            "styles": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object"
+                                }
+                            },
+                            "cursor": {
+                                "type": "object",
+                                "properties": {
+                                    "before": {
+                                        "type": "integer"
+                                    },
+                                    "after": {
+                                        "type": "integer"
+                                    }
+                                }
+                            }
+                        },
+                        "required": [
+                            "styles"
+                        ]
+                    }
+                },
+                "required": [
+                    "meta"
+                ],
+                "additionalProperties": true
+            }
+        },
+        "get_style": {
+            "display_name": "Get Style",
+            "description": "Get a published style by its asset key.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "key": {
+                        "type": "string",
+                        "description": "Published asset key, not a node ID.",
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9_-]+$"
+                    }
+                },
+                "required": [
+                    "key"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "meta": {
+                        "type": "object",
+                        "description": "Figma response object; nested fields are preserved."
+                    }
+                },
+                "required": [
+                    "meta"
+                ],
+                "additionalProperties": true
+            }
+        }
+    }
+}
