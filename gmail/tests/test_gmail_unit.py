@@ -1383,6 +1383,38 @@ class TestSendEmail:
         assert result.type == ResultType.ACTION_ERROR
 
 
+class TestImportEmail:
+    @pytest.mark.asyncio
+    async def test_imports_raw_message_into_connected_mailbox(self, mock_context):
+        source = (
+            b"From: alice@example.com\r\n"
+            b"To: bob@example.com\r\n"
+            b"Date: Fri, 13 Nov 2026 10:00:00 +0000\r\n"
+            b"Subject: Archived email\r\n\r\n"
+            b"Original message body\r\n"
+        )
+        raw = base64.urlsafe_b64encode(source).decode("ascii")
+
+        with _patched_service() as mock_build:
+            messages = mock_build.return_value.users().messages()
+            messages.import_.return_value.execute.return_value = {"id": "imported-1"}
+            result = await gmail.execute_action("import_email", {"raw": raw}, mock_context)
+
+        messages.import_.assert_called_once_with(userId="me", body={"raw": raw})
+        messages.send.assert_not_called()
+        assert result.type == ResultType.ACTION
+        assert result.result.data == {"id": "imported-1"}
+
+    @pytest.mark.asyncio
+    async def test_rejected_import_returns_action_error(self, mock_context):
+        with _patched_service() as mock_build:
+            messages = mock_build.return_value.users().messages()
+            messages.import_.return_value.execute.side_effect = Exception("Invalid RFC 2822 message")
+            result = await gmail.execute_action("import_email", {"raw": "aW52YWxpZA=="}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
 class TestReplyToThread:
     @pytest.mark.asyncio
     async def test_returns_id_on_success(self, mock_context):

@@ -895,6 +895,19 @@ class SendEmail(ActionHandler):
             return ActionError(message=str(e))
 
 
+@gmail.action("import_email")
+class ImportEmail(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            service = build_gmail_service(context)
+            response = service.users().messages().import_(userId="me", body={"raw": inputs["raw"]}).execute()
+
+            return ActionResult(data={"id": response["id"]}, cost_usd=0.0)
+
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
 @gmail.action("reply_to_thread")
 class ReplyToThread(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
