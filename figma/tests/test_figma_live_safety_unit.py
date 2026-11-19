@@ -61,7 +61,7 @@ def harness(monkeypatch, transport, enabled=True, marked=True):
     }
     request = MagicMock()
     request.node.get_closest_marker.return_value = object() if marked else None
-    return live_tests.live_context.__wrapped__(values.__getitem__, values.get, request), values
+    return live_tests.live_context.__wrapped__(values.__getitem__, values.get, request, {}), values
 
 
 async def test_cleanup_runs_after_test_failure(monkeypatch):

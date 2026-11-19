@@ -4,8 +4,10 @@ All HTTP responses come from Figma; no response payloads are mocked. The
 context adapter supplies the same OAuth Bearer header as the SDK platform layer.
 """
 
+import asyncio
 import json as jsonlib
 import os
+import time
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 from unittest.mock import AsyncMock, MagicMock
@@ -26,6 +28,11 @@ def read_cache():
     return {}
 
 
+@pytest.fixture(scope="module")
+def api_budget():
+    return {"last_design_read": 0.0}
+
+
 @pytest.fixture
 def fixture_value(env_credentials):
     def require(name):
@@ -38,7 +45,7 @@ def fixture_value(env_credentials):
 
 
 @pytest.fixture
-async def live_context(fixture_value, env_credentials, request):
+async def live_context(fixture_value, env_credentials, request, api_budget):
     token = fixture_value("FIGMA_ACCESS_TOKEN")
     created_comments = []
     allow_writes = (
@@ -52,6 +59,18 @@ async def live_context(fixture_value, env_credentials, request):
             assert parsed.scheme == "https" and parsed.netloc == "api.figma.com"
             if method != "GET":
                 assert allow_writes, "Writes require a destructive test and FIGMA_RUN_DESTRUCTIVE_TESTS=1"
+            # File/node reads and renders share Figma's restrictive Tier 1 budget.
+            # Space uncached design requests below ten/minute across the whole suite.
+            segments = parsed.path.strip("/").split("/")
+            design_read = method == "GET" and (
+                segments[:2] == ["v1", "images"]
+                or (segments[:2] == ["v1", "files"] and (len(segments) == 3 or segments[-1] == "nodes"))
+            )
+            if design_read:
+                delay = 7 - (time.monotonic() - api_budget["last_design_read"])
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                api_budget["last_design_read"] = time.monotonic()
             merged_headers = {**(headers or {}), "Authorization": f"Bearer {token}"}
             async with session.request(method, url, headers=merged_headers, params=params, json=json) as response:
                 text = await response.text()

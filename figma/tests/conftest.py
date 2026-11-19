@@ -9,6 +9,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 
+def pytest_configure(config):
+    """Also register live markers when tooling runs tests outside the root config."""
+    config.addinivalue_line("markers", "integration: real Figma API tests requiring test credentials and fixtures")
+    config.addinivalue_line("markers", "destructive: tests that create or delete data in a dedicated Figma test file")
+
+
 @pytest.fixture
 def mock_context():
     context = MagicMock(name="ExecutionContext")
