@@ -697,6 +697,9 @@ async def test_read_onedrive_file_content_live(live_context):
     assert "file" in result.result.data
     assert result.result.data["file"]["content"], "file content should be non-empty"
     assert "metadata" in result.result.data
+    # Checks that Graph returns the download URL for the $select the action sends. The URL is not printed,
+    # because it downloads the file without sign-in.
+    assert result.result.data["metadata"]["downloadUrl"].startswith("https://"), "Graph returned no download URL"
     if expected_content := _state.get("uploaded_file_content"):
         actual_content = base64.b64decode(result.result.data["file"]["content"], validate=True)
         assert actual_content == expected_content, "downloaded bytes should exactly match uploaded bytes"
@@ -915,6 +918,8 @@ async def test_read_sharepoint_document_live(live_context):
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     assert "file" in result.result.data
     assert "metadata" in result.result.data
+    # Graph leaves this URL out on SharePoint when $select names "@microsoft.graph.downloadUrl" itself.
+    assert result.result.data["metadata"]["downloadUrl"].startswith("https://"), "Graph returned no download URL"
 
 
 @skip_if_no_creds

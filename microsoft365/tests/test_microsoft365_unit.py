@@ -1491,6 +1491,105 @@ async def test_read_onedrive_uses_current_graph_pdf_conversion_extensions(mock_c
 
 
 @pytest.mark.asyncio
+async def test_read_onedrive_file_content_returns_the_graph_download_url(mock_context):
+    metadata = {
+        "id": "f1",
+        "name": "readme.txt",
+        "size": 11,
+        "file": {"mimeType": "text/plain"},
+        "webUrl": "https://od.com/f1",
+        "@microsoft.graph.downloadUrl": "https://download.example/f1",
+    }
+    mock_context.fetch = make_fetch(metadata)
+    with patch("microsoft365.microsoft365._fetch_binary", new=AsyncMock(return_value=b"hello world")):
+        result = await microsoft365.execute_action("read_onedrive_file_content", {"file_id": "f1"}, mock_context)
+
+    assert result.type != ResultType.ACTION_ERROR
+    assert result.result.data["metadata"]["downloadUrl"] == "https://download.example/f1"
+    assert result.result.data["file"]["content"] == base64.b64encode(b"hello world").decode("ascii")
+    selected = mock_context.fetch.await_args.kwargs["params"]["$select"].split(",")
+    assert "content.downloadUrl" in selected
+
+
+@pytest.mark.asyncio
+async def test_read_onedrive_file_content_without_a_graph_download_url_returns_an_empty_url(mock_context):
+    metadata = {"id": "f1", "name": "readme.txt", "size": 11, "file": {"mimeType": "text/plain"}}
+    mock_context.fetch = make_fetch(metadata)
+    with patch("microsoft365.microsoft365._fetch_binary", new=AsyncMock(return_value=b"hello world")):
+        result = await microsoft365.execute_action("read_onedrive_file_content", {"file_id": "f1"}, mock_context)
+
+    assert result.type != ResultType.ACTION_ERROR
+    assert result.result.data["metadata"]["downloadUrl"] == ""
+    assert "file" in result.result.data
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", ["video.mp4", "big report.docx"])
+async def test_read_onedrive_large_file_returns_only_the_download_url(mock_context, name):
+    metadata = {
+        "id": "f1",
+        "name": name,
+        "size": 4_000_001,
+        "file": {"mimeType": "application/octet-stream"},
+        "@microsoft.graph.downloadUrl": "https://download.example/f1",
+    }
+    mock_context.fetch = make_fetch(metadata)
+    binary_fetch = AsyncMock()
+    with patch("microsoft365.microsoft365._fetch_binary", new=binary_fetch):
+        result = await microsoft365.execute_action("read_onedrive_file_content", {"file_id": "f1"}, mock_context)
+
+    assert result.type != ResultType.ACTION_ERROR
+    assert "file" not in result.result.data
+    assert result.result.data["metadata"]["downloadUrl"] == "https://download.example/f1"
+    assert result.result.data["metadata"]["convertedToPdf"] is False
+    binary_fetch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_read_onedrive_file_at_the_size_limit_is_returned(mock_context):
+    metadata = {"id": "f1", "name": "data.bin", "size": 4_000_000, "file": {"mimeType": "application/octet-stream"}}
+    mock_context.fetch = make_fetch(metadata)
+    with patch("microsoft365.microsoft365._fetch_binary", new=AsyncMock(return_value=b"x" * 4_000_000)):
+        result = await microsoft365.execute_action("read_onedrive_file_content", {"file_id": "f1"}, mock_context)
+
+    assert result.type != ResultType.ACTION_ERROR
+    assert result.result.data["file"]["name"] == "data.bin"
+
+
+@pytest.mark.asyncio
+async def test_read_onedrive_pdf_conversion_larger_than_the_limit_returns_only_the_download_url(mock_context):
+    metadata = {
+        "id": "f1",
+        "name": "slides.pptx",
+        "size": 1_500_000,
+        "file": {"mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation"},
+        "@microsoft.graph.downloadUrl": "https://download.example/f1",
+    }
+    mock_context.fetch = make_fetch(metadata)
+    with patch("microsoft365.microsoft365._fetch_binary", new=AsyncMock(return_value=b"%PDF" + b"x" * 4_000_000)):
+        result = await microsoft365.execute_action("read_onedrive_file_content", {"file_id": "f1"}, mock_context)
+
+    assert result.type != ResultType.ACTION_ERROR
+    assert "file" not in result.result.data
+    assert result.result.data["metadata"]["downloadUrl"] == "https://download.example/f1"
+    assert result.result.data["metadata"]["convertedToPdf"] is False
+
+
+@pytest.mark.asyncio
+async def test_read_onedrive_large_file_without_a_download_url_is_an_error(mock_context):
+    metadata = {"id": "f1", "name": "video.mp4", "size": 9_000_000, "file": {"mimeType": "video/mp4"}}
+    mock_context.fetch = make_fetch(metadata)
+    binary_fetch = AsyncMock()
+    with patch("microsoft365.microsoft365._fetch_binary", new=binary_fetch):
+        result = await microsoft365.execute_action("read_onedrive_file_content", {"file_id": "f1"}, mock_context)
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert "9000000 bytes" in result.result.message
+    assert "no download URL" in result.result.message
+    binary_fetch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_read_onedrive_file_content_error(mock_context):
     mock_context.fetch = AsyncMock(side_effect=Exception("err"))
     result = await microsoft365.execute_action("read_onedrive_file_content", {"file_id": "f1"}, mock_context)
@@ -2340,6 +2439,32 @@ async def test_read_sharepoint_document(mock_context):
         )
     assert result.type != ResultType.ACTION_ERROR
     assert result.result.data["file"]["name"] == "readme.txt"
+
+
+@pytest.mark.asyncio
+async def test_read_sharepoint_large_document_returns_only_the_download_url(mock_context):
+    metadata = {
+        "id": "f1",
+        "name": "site plan.pdf",
+        "size": 8_000_000,
+        "file": {"mimeType": "application/pdf"},
+        "@microsoft.graph.downloadUrl": "https://download.example/f1",
+    }
+    mock_context.fetch = make_fetch(metadata)
+    binary_fetch = AsyncMock()
+    with patch("microsoft365.microsoft365._fetch_binary", new=binary_fetch):
+        result = await microsoft365.execute_action(
+            "read_sharepoint_document",
+            {"site_id": "s1", "file_id": "f1", "drive_id": "d1"},
+            mock_context,
+        )
+
+    assert result.type != ResultType.ACTION_ERROR
+    assert "file" not in result.result.data
+    assert result.result.data["metadata"]["downloadUrl"] == "https://download.example/f1"
+    assert result.result.data["metadata"]["site_id"] == "s1"
+    assert result.result.data["metadata"]["drive_id"] == "d1"
+    binary_fetch.assert_not_awaited()
 
 
 @pytest.mark.asyncio
