@@ -12,4 +12,5 @@ def mock_context():
     context = MagicMock()
     context.auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "test-token"}}  # nosec B105
     context.fetch = AsyncMock()
+    context.config = {"max_retries": 3, "timeout": 30}
     return context

@@ -1,4 +1,4 @@
-"""Read-only sandbox tests. No customer data or credentials are committed."""
+"""Sandbox tests, including explicitly selected destructive writes."""
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -31,19 +31,61 @@ def live_context(env_credentials):
     if not token:
         pytest.skip("MICROSOFT_BUSINESS_CENTRAL_ACCESS_TOKEN is required.")
 
-    async def real_fetch(url, *, method="GET", headers=None, params=None):
+    async def real_fetch(url, *, method="GET", headers=None, params=None, json=None, retry_count=0):
         request_headers = dict(headers or {}, Authorization=f"Bearer {token}")
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
             async with session.request(
-                method, url, headers=request_headers, params=params, allow_redirects=False
+                method, url, headers=request_headers, params=params, json=json, allow_redirects=False
             ) as resp:
-                data = await resp.json(content_type=None)
+                data = None if resp.status == 204 else await resp.json(content_type=None)
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
     context = MagicMock()
     context.auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": token}}
     context.fetch = AsyncMock(side_effect=real_fetch)
+    context.config = {"max_retries": 0, "timeout": 30}
     return context
+
+
+@pytest.mark.destructive
+@pytest.mark.parametrize("with_lines", [False, True])
+async def test_create_purchase_order(live_context, live_inputs, env_credentials, with_lines):
+    vendor = env_credentials("MICROSOFT_BUSINESS_CENTRAL_TEST_VENDOR_NUMBER")
+    if not vendor or live_inputs["environment"].lower() != "sandbox":
+        pytest.skip("Requires Sandbox and an explicitly configured test vendor; leaves a draft for manual cleanup.")
+    inputs = dict(live_inputs, vendor_number=vendor)
+    if with_lines:
+        item_id = env_credentials("MICROSOFT_BUSINESS_CENTRAL_TEST_ITEM_ID")
+        if not item_id:
+            pytest.skip("Line creation requires an explicitly configured sandbox test item.")
+        inputs["lines"] = [{"item_id": item_id, "quantity": 1}]
+    data = await execute("create_purchase_order", inputs, live_context)
+    record = data["record"]
+    assert record["id"] and record["number"]
+    assert record["vendorNumber"] == vendor
+    saved = await execute("get_purchase_order", dict(live_inputs, purchase_order_id=record["id"]), live_context)
+    assert saved["record"]["id"] == record["id"]
+    if with_lines:
+        lines = await execute(
+            "list_purchase_order_lines", dict(live_inputs, purchase_order_id=record["id"]), live_context
+        )
+        assert any(line["itemId"] == item_id and line["quantity"] == 1 for line in lines["records"])
+
+
+@pytest.mark.destructive
+async def test_remove_purchase_order(live_context, live_inputs, env_credentials):
+    vendor = env_credentials("MICROSOFT_BUSINESS_CENTRAL_TEST_VENDOR_NUMBER")
+    if not vendor or live_inputs["environment"].lower() != "sandbox":
+        pytest.skip("Requires Sandbox and an explicitly configured test vendor.")
+    created = await execute("create_purchase_order", dict(live_inputs, vendor_number=vendor), live_context)
+    order_id = created["record"]["id"]
+    inputs = dict(live_inputs, purchase_order_id=order_id)
+    saved = await execute("get_purchase_order", inputs, live_context)
+    removed = await execute("remove_purchase_order", dict(inputs, etag=saved["record"]["@odata.etag"]), live_context)
+    assert removed == {"purchase_order_id": order_id, "deleted": True}
+    missing = await businesscentral.execute_action("get_purchase_order", inputs, live_context)
+    assert missing.type == ResultType.ACTION_ERROR
+    assert "not found" in missing.result.message
 
 
 async def execute(action, inputs, context):

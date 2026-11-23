@@ -1,4 +1,4 @@
-"""Read-only Business Central inventory planning, billing and finance actions."""
+"""Business Central purchasing, inventory planning, billing and finance actions."""
 
 import asyncio
 import re
@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.parse import quote, urlsplit
 from uuid import UUID
 
+from aiohttp import ClientError
 from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, HTTPError, Integration
 
 businesscentral = Integration.load(Path(__file__).with_name("config.json"))
@@ -193,6 +194,109 @@ async def list_sales_invoices(context, inputs):
         return ActionResult(data=await read_page(context, url, inputs, " and ".join(clauses)))
     except BusinessCentralError as exc:
         return ActionError(message=str(exc))
+
+
+@businesscentral.action("create_purchase_order")
+class CreatePurchaseOrderAction(ActionHandler):
+    async def execute(self, inputs, context):
+        try:
+            url = f"{base_url(inputs)}/purchaseOrders"
+            if not context.auth.get("credentials", {}).get("access_token"):
+                raise BusinessCentralError("Connect a Business Central OAuth account before running this action.")
+            if bool(inputs.get("vendor_id")) == bool(inputs.get("vendor_number")):
+                raise BusinessCentralError("Supply exactly one of vendor_id or vendor_number.")
+            body = {}
+            if inputs.get("vendor_id"):
+                body["vendorId"] = guid(inputs["vendor_id"])
+            else:
+                body["vendorNumber"] = inputs["vendor_number"]
+            for api_name, raw_date in (
+                ("orderDate", inputs.get("order_date")),
+                ("postingDate", inputs.get("posting_date")),
+                ("requestedReceiptDate", inputs.get("requested_receipt_date")),
+            ):
+                if raw_date is not None:
+                    value, _ = date_range(raw_date, None)
+                    body[api_name] = value.isoformat()
+            currency_code = inputs.get("currency_code")
+            if currency_code is not None:
+                body["currencyCode"] = currency_code
+            order_lines = inputs.get("lines")
+            if order_lines is not None:
+                lines = []
+                for line in order_lines:
+                    row = {"lineType": "Item", "itemId": guid(line["item_id"]), "quantity": line["quantity"]}
+                    for name, api_name in (
+                        ("direct_unit_cost", "directUnitCost"),
+                        ("unit_of_measure_code", "unitOfMeasureCode"),
+                        ("description", "description"),
+                    ):
+                        if name in line:
+                            row[api_name] = line[name]
+                    lines.append(row)
+                body["purchaseOrderLines"] = lines
+            try:
+                # Start at the SDK retry limit: a lost POST response must not create a second order.
+                response = await context.fetch(
+                    url,
+                    method="POST",
+                    json=body,
+                    retry_count=context.config.get("max_retries", 3),
+                )
+            except HTTPError as exc:
+                raise BusinessCentralError(http_message(exc.status)) from exc
+            except (ClientError, asyncio.TimeoutError) as exc:
+                raise BusinessCentralError(
+                    "Purchase order outcome is unknown. Check Business Central before retrying to avoid duplicates."
+                ) from exc
+            if response.status != 201:
+                raise BusinessCentralError(http_message(response.status))
+            record = response.data
+            if not isinstance(record, dict) or "error" in record or not record.get("id"):
+                raise BusinessCentralError(
+                    "Business Central returned an unexpected creation response. Check purchase orders before retrying."
+                )
+            return ActionResult(data={"record": record})
+        except BusinessCentralError as exc:
+            return ActionError(message=str(exc))
+
+
+@businesscentral.action("remove_purchase_order")
+class RemovePurchaseOrderAction(ActionHandler):
+    async def execute(self, inputs, context):
+        try:
+            order_id = guid(inputs["purchase_order_id"])
+            url = f"{base_url(inputs)}/purchaseOrders({order_id})"
+            if not context.auth.get("credentials", {}).get("access_token"):
+                raise BusinessCentralError("Connect a Business Central OAuth account before running this action.")
+            etag = inputs["etag"]
+            if not re.fullmatch(r'(?:W/)?"[^"\r\n]+"', etag):
+                raise BusinessCentralError(
+                    "Supply the exact @odata.etag from get_purchase_order; wildcards are not allowed."
+                )
+            try:
+                response = await context.fetch(
+                    url,
+                    method="DELETE",
+                    headers={"If-Match": etag},
+                    retry_count=context.config.get("max_retries", 3),
+                )
+                status = response.status
+            except HTTPError as exc:
+                status = exc.status
+            except (ClientError, asyncio.TimeoutError) as exc:
+                raise BusinessCentralError(
+                    "Purchase order removal outcome is unknown. Check Business Central before retrying."
+                ) from exc
+            if status == 412:
+                raise BusinessCentralError(
+                    "Purchase order changed. Retrieve it again and review it before removing it."
+                )
+            if status != 204:
+                raise BusinessCentralError(http_message(status))
+            return ActionResult(data={"purchase_order_id": order_id, "deleted": True})
+        except BusinessCentralError as exc:
+            return ActionError(message=str(exc))
 
 
 @businesscentral.action("list_companies")

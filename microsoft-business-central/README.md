@@ -1,6 +1,6 @@
 # Microsoft Dynamics 365 Business Central
 
-Read-only Business Central Online integration with 34 actions for inventory planning, client billing, receivables/payables aging and financial reporting. Uses standard REST API v2.0 and platform-managed OAuth. No purchase orders, postings or payments are created.
+Business Central Online integration with 36 actions for inventory planning, client billing, receivables/payables aging and financial reporting. Uses standard REST API v2.0 and platform-managed OAuth. Supports purchase order creation and removal; no receipts, invoices, postings or payments are created.
 
 ## Connection setup
 
@@ -9,7 +9,7 @@ An Autohive administrator must configure the **Microsoft Business Central** OAut
 `oauth-provider.example.json` contains the provider's **details** JSON for a provider named `Microsoft Business Central` with auth type `PlatformOauth2`. The public Entra client ID `ef1b00c7-e2bd-43bd-8432-25dd3e278c0b` is stored directly in `client_id`, following the existing auth-provider scripts. Only the client secret is resolved from the SSM SecureString `/integrations/microsoft-business-central/client-secret`; do not configure `client_id_secret_name`. The JSON file is a configuration reference, not an automatic import or deployment script. The backend provider migration is `scripts/20261123.00.add-microsoft-business-central-auth-provider.sql` in the Autohive platform repository.
 
 1. Register a dedicated Microsoft Entra web application. For a shared connection experience, support organizational tenants; for a single customer, tenant-specific authorization/token endpoints can be used.
-2. Add **Dynamics 365 Business Central → Delegated permissions → Financials.ReadWrite.All**. The API permission name includes write access; this integration exposes only reads. Restrict the connected user's Business Central object/company permissions to the intended read access.
+2. Add **Dynamics 365 Business Central → Delegated permissions → Financials.ReadWrite.All**. Restrict the connected user's Business Central object/company permissions to the intended access. Creating purchase orders requires insert permissions on purchase headers and, when lines are supplied, purchase lines.
 3. Register the exact callback URL from the target Autohive deployment: `<platform-origin>/integrations/oauth2/callback`.
 4. Provision the application client secret through the platform's secret store. Configure the provider's client ID, secret reference, authorization endpoint, token endpoint and scopes. Use the existing Microsoft platform OAuth flow, including refresh-token storage; keep app secrets out of this repository.
 5. Configure both provider and integration scopes as `offline_access` and `https://api.businesscentral.dynamics.com/Financials.ReadWrite.All`. Provider scopes drive consent; changing only the integration config is insufficient.
@@ -38,6 +38,8 @@ Collection actions accept `page_size` (1–1000, default 100) and `next_link`. T
 | `list_units_of_measure` | Paging | Unit reference codes, not item-specific pack conversions. |
 | `list_vendors` | Optional `vendor_number`; paging | Supplier reference data. |
 | `list_item_ledger_entries` | Optional `item_number`, `start_date`, `end_date`; paging | Movements, quantities and recorded actual costs; dates filter `postingDate`. |
+| `remove_purchase_order` | Required `purchase_order_id` and `etag` from `get_purchase_order` | Permanently deletes the order; returns `{purchase_order_id, deleted}`. |
+| `create_purchase_order` | Exactly one of `vendor_id` / `vendor_number`; optional dates, currency and item `lines` | Created purchase order as `{record}`. |
 | `list_purchase_orders` | Optional `vendor_id`, dates; paging | Purchase commitments; dates filter `orderDate`. |
 | `get_purchase_order` | Required `purchase_order_id` | Header including vendor, currency and status. |
 | `list_purchase_order_lines` | Required `purchase_order_id`; optional `item_id`; paging | Costs, expected receipts, quantities and units. |
@@ -50,6 +52,32 @@ Collection actions accept `page_size` (1–1000, default 100) and `next_link`. T
 | `forecast_stock` | Required `item_id`, `start_date`, `end_date`, `forecast_days` (1–365) | Demand baseline, current/projected inventory, days of cover, source counts, dates, method and limitations. Numeric calculations return decimal strings. |
 
 Dates use `YYYY-MM-DD`, inclusive. IDs are GUIDs, not visible document/item numbers. Errors return `ActionError` with sanitized setup/retry guidance. Reads retry transient 429/502/503/504 failures at most twice; long `Retry-After` delays return an error so the workflow can retry later. SDK network retries also apply.
+
+## Creating purchase orders
+
+`create_purchase_order` accepts the common company inputs and exactly one of `vendor_id` or `vendor_number`. Optional header inputs are `order_date`, `posting_date`, `requested_receipt_date` and `currency_code`. Omitted fields use Business Central defaults. An empty currency code selects local currency.
+
+Supply `lines` to create up to 100 item lines together with the header through a single deep-insert POST. Each line requires `item_id` and a positive `quantity`, with optional `direct_unit_cost`, `unit_of_measure_code` and `description`. Quantities use the selected unit of measure, or the item's purchase default; a reorder estimate in base units may need conversion. Omit unit cost to use Business Central pricing. Omit lines for a header-only order. This action does not release, receive or invoice the order.
+
+```json
+{
+  "tenant_id": "11111111-1111-1111-1111-111111111111",
+  "environment": "Sandbox",
+  "company_id": "22222222-2222-2222-2222-222222222222",
+  "vendor_number": "20000",
+  "lines": [{"item_id": "33333333-3333-3333-3333-333333333333", "quantity": 5}]
+}
+```
+
+The action returns `{record}` with the created ID, number and provider fields. Use `list_purchase_order_lines` to retrieve lines. Creation makes one request without SDK network retries. It is not idempotent: after a timeout, server error or malformed response, inspect Business Central before rerunning, since the order may already exist.
+
+## Removing purchase orders
+
+`remove_purchase_order` permanently deletes the selected purchase order and its lines. First retrieve it with `get_purchase_order`, review the record, then supply its `id` as `purchase_order_id` and its exact `@odata.etag` as `etag`, along with the common company inputs. Preserve the quotes and any `W/` prefix in the ETag. Wildcard ETags are rejected.
+
+The action sends one DELETE with `If-Match` and no request body. A changed order returns an error requiring a fresh read and review. A missing order returns an error rather than reporting a new deletion. Successful HTTP 204 returns `{purchase_order_id, deleted: true}`. Network failures return an uncertain-outcome error without retrying automatically; inspect Business Central before rerunning.
+
+The connected user needs delete permissions for purchase documents. Business Central applies its document deletion rules; this action does not reverse posted receipts or invoices.
 
 ## Finance actions
 
@@ -123,13 +151,21 @@ Read-only live tests require a dedicated sandbox and the four `MICROSOFT_BUSINES
 pytest microsoft-business-central/tests/test_business_central_integration.py -m "integration and not destructive"
 ```
 
-There are no destructive actions or tests. Live tests skip when credentials are absent; document/forecast tests also skip when their sandbox fixtures are absent. Skipped tests do not demonstrate API compatibility. TeamCity supplies the platform OAuth token automatically; configure its sandbox variables through `tests/teamcity.env` secret markers. Validate API field availability and reconcile stock/cost results in the actual sandbox before release.
+Purchase order creation changes company data. Purchase order write tests are marked `destructive` and require an explicitly supplied sandbox vendor number. Live tests skip when credentials are absent; document/forecast tests also skip when their sandbox fixtures are absent. Skipped tests do not demonstrate API compatibility. TeamCity supplies the platform OAuth token automatically; configure its sandbox variables through `tests/teamcity.env` secret markers. Validate API field availability and reconcile stock/cost results in the actual sandbox before release.
+
+To run the purchase order write tests in a dedicated sandbox, set `MICROSOFT_BUSINESS_CENTRAL_TEST_VENDOR_NUMBER` and explicitly select them. Also set `MICROSOFT_BUSINESS_CENTRAL_TEST_ITEM_ID` to exercise creation with an item line. Creation tests leave drafts for manual inspection and cleanup. The removal test creates and deletes its own draft; it does not delete a pre-existing order:
+
+```bash
+pytest microsoft-business-central/tests/test_business_central_integration.py -m "integration and destructive" -k "create_purchase_order or remove_purchase_order"
+```
 
 ## Official references
 
 - [Business Central API v2.0](https://learn.microsoft.com/en-us/dynamics365/business-central/dev-itpro/api-reference/v2.0/)
 - [Entra/Connect app setup](https://learn.microsoft.com/en-us/dynamics365/business-central/dev-itpro/developer/devenv-develop-connect-apps)
 - [Items](https://learn.microsoft.com/en-us/dynamics365/business-central/dev-itpro/api-reference/v2.0/resources/dynamics_item), [item ledger entries](https://learn.microsoft.com/en-us/dynamics365/business-central/dev-itpro/api-reference/v2.0/resources/dynamics_itemledgerentry)
+- [Delete purchase orders](https://learn.microsoft.com/en-us/dynamics365/business-central/dev-itpro/api-reference/v2.0/api/dynamics_purchaseorder_delete)
+- [Create purchase orders](https://learn.microsoft.com/en-us/dynamics365/business-central/dev-itpro/api-reference/v2.0/api/dynamics_purchaseorder_create), [purchase order API implementation](https://github.com/microsoft/ALAppExtensions/blob/main/Apps/W1/APIV2/app/src/pages/APIV2PurchaseOrders.Page.al)
 - [Purchase lines](https://learn.microsoft.com/en-us/dynamics365/business-central/dev-itpro/api-reference/v2.0/resources/dynamics_purchaseorderline), [sales lines](https://learn.microsoft.com/en-us/dynamics365/business-central/dev-itpro/api-reference/v2.0/resources/dynamics_salesorderline)
 - [Sales invoices](https://learn.microsoft.com/en-us/dynamics365/business-central/dev-itpro/api-reference/v2.0/resources/dynamics_salesinvoice), [credit memos](https://learn.microsoft.com/en-us/dynamics365/business-central/dev-itpro/api-reference/v2.0/api/dynamics_salescreditmemo_get)
 - [General ledger entries](https://learn.microsoft.com/en-us/dynamics365/business-central/dev-itpro/api-reference/v2.0/resources/dynamics_generalledgerentry), [entry dimensions](https://learn.microsoft.com/en-us/dynamics365/business-central/dev-itpro/api-reference/v2.0/api/dynamics_dimensionsetline_get)
