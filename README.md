@@ -199,7 +199,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Microsoft Dynamics 365 Business Central
 
-[microsoft-business-central](microsoft-business-central): Read-only Business Central Online inventory, purchasing and stock-planning integration. Includes 19 actions for company/item lookup, inventory movements, vendors, purchase and sales documents, recorded-cost reorder estimates and historical-demand baseline forecasts. Uses platform OAuth with a dedicated Business Central provider.
+[microsoft-business-central](microsoft-business-central): Read-only Business Central Online inventory, purchasing, billing and finance integration. Includes 34 actions for inventory movements, recorded-cost reorder estimates, baseline stock forecasts, client invoices and credits, receivables/payables aging, posted ledger entries, dimensions, trial balance and income statement. Uses platform OAuth with a dedicated Business Central provider.
 
 ### Microsoft Excel
 

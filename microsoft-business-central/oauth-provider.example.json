@@ -1,7 +1,7 @@
 {
-  "client_id": "<entra-application-client-id>",
+  "client_id": "ef1b00c7-e2bd-43bd-8432-25dd3e278c0b",
   "client_secret": "",
-  "client_secret_secret_name": "<secure-parameter-name>",
+  "client_secret_secret_name": "/integrations/microsoft-business-central/client-secret",
   "authorization_url": "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize",
   "token_url": "https://login.microsoftonline.com/organizations/oauth2/v2.0/token",
   "scopes": [

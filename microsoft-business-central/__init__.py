@@ -1,3 +1,3 @@
-from .business_central import business_central
+from .businesscentral import businesscentral
 
-__all__ = ["business_central"]
+__all__ = ["businesscentral"]

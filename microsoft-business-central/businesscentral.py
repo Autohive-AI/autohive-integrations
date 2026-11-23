@@ -1,4 +1,4 @@
-"""Read-only Business Central inventory, purchasing and demand actions."""
+"""Read-only Business Central inventory planning, billing and finance actions."""
 
 import asyncio
 import re
@@ -10,7 +10,7 @@ from uuid import UUID
 
 from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, HTTPError, Integration
 
-business_central = Integration.load(Path(__file__).with_name("config.json"))
+businesscentral = Integration.load(Path(__file__).with_name("config.json"))
 HOST = "https://api.businesscentral.dynamics.com"
 MAX_HISTORY_ROWS = 10000
 
@@ -166,7 +166,36 @@ async def list_lines(context, inputs, document_resource, line_resource, id_field
         return ActionError(message=str(exc))
 
 
-@business_central.action("list_companies")
+async def list_child_resource(context, inputs, parent, child, id_field):
+    try:
+        resource = f"{parent}({guid(inputs[id_field])})/{child}"
+        return await list_resource(context, inputs, resource)
+    except BusinessCentralError as exc:
+        return ActionError(message=str(exc))
+
+
+async def list_sales_invoices(context, inputs):
+    try:
+        expression = filters(inputs, (("customer_id", "customerId", True),), "postingDate")
+        clauses = [expression] if expression else []
+        status = inputs.get("status")
+        if inputs.get("outstanding_only"):
+            if status and status != "Open":
+                raise BusinessCentralError("outstanding_only requires status Open, or no status filter.")
+            status = "Open"
+            clauses.append("remainingAmount gt 0")
+        if status:
+            clauses.append(f"status eq {odata_string(status)}")
+        if inputs.get("due_before"):
+            due_before, _ = date_range(inputs["due_before"], None)
+            clauses.append(f"dueDate lt {due_before.isoformat()}")
+        url = f"{base_url(inputs)}/salesInvoices"
+        return ActionResult(data=await read_page(context, url, inputs, " and ".join(clauses)))
+    except BusinessCentralError as exc:
+        return ActionError(message=str(exc))
+
+
+@businesscentral.action("list_companies")
 class ListCompaniesAction(ActionHandler):
     async def execute(self, inputs, context):
         return await list_resource(
@@ -182,7 +211,7 @@ class ListCompaniesAction(ActionHandler):
         )
 
 
-@business_central.action("get_company_information")
+@businesscentral.action("get_company_information")
 class GetCompanyInformationAction(ActionHandler):
     async def execute(self, inputs, context):
         return await list_resource(
@@ -198,7 +227,7 @@ class GetCompanyInformationAction(ActionHandler):
         )
 
 
-@business_central.action("list_items")
+@businesscentral.action("list_items")
 class ListItemsAction(ActionHandler):
     async def execute(self, inputs, context):
         return await list_resource(
@@ -216,7 +245,7 @@ class ListItemsAction(ActionHandler):
         )
 
 
-@business_central.action("get_item")
+@businesscentral.action("get_item")
 class GetItemAction(ActionHandler):
     async def execute(self, inputs, context):
         return await get_resource(
@@ -232,7 +261,7 @@ class GetItemAction(ActionHandler):
         )
 
 
-@business_central.action("list_locations")
+@businesscentral.action("list_locations")
 class ListLocationsAction(ActionHandler):
     async def execute(self, inputs, context):
         return await list_resource(
@@ -248,7 +277,7 @@ class ListLocationsAction(ActionHandler):
         )
 
 
-@business_central.action("list_item_variants")
+@businesscentral.action("list_item_variants")
 class ListItemVariantsAction(ActionHandler):
     async def execute(self, inputs, context):
         return await list_resource(
@@ -266,7 +295,7 @@ class ListItemVariantsAction(ActionHandler):
         )
 
 
-@business_central.action("list_units_of_measure")
+@businesscentral.action("list_units_of_measure")
 class ListUnitsOfMeasureAction(ActionHandler):
     async def execute(self, inputs, context):
         return await list_resource(
@@ -282,7 +311,7 @@ class ListUnitsOfMeasureAction(ActionHandler):
         )
 
 
-@business_central.action("list_vendors")
+@businesscentral.action("list_vendors")
 class ListVendorsAction(ActionHandler):
     async def execute(self, inputs, context):
         return await list_resource(
@@ -300,7 +329,7 @@ class ListVendorsAction(ActionHandler):
         )
 
 
-@business_central.action("list_item_ledger_entries")
+@businesscentral.action("list_item_ledger_entries")
 class ListItemLedgerEntriesAction(ActionHandler):
     async def execute(self, inputs, context):
         return await list_resource(
@@ -321,7 +350,7 @@ class ListItemLedgerEntriesAction(ActionHandler):
         )
 
 
-@business_central.action("list_purchase_orders")
+@businesscentral.action("list_purchase_orders")
 class ListPurchaseOrdersAction(ActionHandler):
     async def execute(self, inputs, context):
         return await list_resource(
@@ -342,7 +371,7 @@ class ListPurchaseOrdersAction(ActionHandler):
         )
 
 
-@business_central.action("get_purchase_order")
+@businesscentral.action("get_purchase_order")
 class GetPurchaseOrderAction(ActionHandler):
     async def execute(self, inputs, context):
         return await get_resource(
@@ -358,7 +387,7 @@ class GetPurchaseOrderAction(ActionHandler):
         )
 
 
-@business_central.action("list_purchase_order_lines")
+@businesscentral.action("list_purchase_order_lines")
 class ListPurchaseOrderLinesAction(ActionHandler):
     async def execute(self, inputs, context):
         return await list_lines(
@@ -378,7 +407,7 @@ class ListPurchaseOrderLinesAction(ActionHandler):
         )
 
 
-@business_central.action("list_sales_orders")
+@businesscentral.action("list_sales_orders")
 class ListSalesOrdersAction(ActionHandler):
     async def execute(self, inputs, context):
         return await list_resource(
@@ -397,7 +426,7 @@ class ListSalesOrdersAction(ActionHandler):
         )
 
 
-@business_central.action("get_sales_order")
+@businesscentral.action("get_sales_order")
 class GetSalesOrderAction(ActionHandler):
     async def execute(self, inputs, context):
         return await get_resource(
@@ -413,7 +442,7 @@ class GetSalesOrderAction(ActionHandler):
         )
 
 
-@business_central.action("list_sales_order_lines")
+@businesscentral.action("list_sales_order_lines")
 class ListSalesOrderLinesAction(ActionHandler):
     async def execute(self, inputs, context):
         return await list_lines(
@@ -433,7 +462,7 @@ class ListSalesOrderLinesAction(ActionHandler):
         )
 
 
-@business_central.action("list_purchase_invoices")
+@businesscentral.action("list_purchase_invoices")
 class ListPurchaseInvoicesAction(ActionHandler):
     async def execute(self, inputs, context):
         return await list_resource(
@@ -454,7 +483,7 @@ class ListPurchaseInvoicesAction(ActionHandler):
         )
 
 
-@business_central.action("list_purchase_invoice_lines")
+@businesscentral.action("list_purchase_invoice_lines")
 class ListPurchaseInvoiceLinesAction(ActionHandler):
     async def execute(self, inputs, context):
         return await list_lines(
@@ -491,7 +520,7 @@ async def inventory_item(context, inputs):
     return item
 
 
-@business_central.action("estimate_reorder_cost")
+@businesscentral.action("estimate_reorder_cost")
 class EstimateReorderCostAction(ActionHandler):
     async def execute(self, inputs, context):
         try:
@@ -520,7 +549,7 @@ class EstimateReorderCostAction(ActionHandler):
             return ActionError(message=str(exc))
 
 
-@business_central.action("forecast_stock")
+@businesscentral.action("forecast_stock")
 class ForecastStockAction(ActionHandler):
     async def execute(self, inputs, context):
         try:
@@ -590,3 +619,287 @@ class ForecastStockAction(ActionHandler):
             )
         except BusinessCentralError as exc:
             return ActionError(message=str(exc))
+
+
+# Finance: client billing, collections and configured dimension analysis.
+
+
+@businesscentral.action("list_customers")
+class ListCustomersAction(ActionHandler):
+    async def execute(self, inputs, context):
+        return await list_resource(
+            context,
+            {
+                "tenant_id": inputs["tenant_id"],
+                "environment": inputs["environment"],
+                "company_id": inputs["company_id"],
+                "page_size": inputs.get("page_size", 100),
+                "next_link": inputs.get("next_link"),
+                "customer_number": inputs.get("customer_number"),
+            },
+            "customers",
+            (("customer_number", "number", False),),
+            None,
+        )
+
+
+@businesscentral.action("get_customer")
+class GetCustomerAction(ActionHandler):
+    async def execute(self, inputs, context):
+        return await get_resource(
+            context,
+            {
+                "tenant_id": inputs["tenant_id"],
+                "environment": inputs["environment"],
+                "company_id": inputs["company_id"],
+                "customer_id": inputs["customer_id"],
+            },
+            "customers",
+            "customer_id",
+        )
+
+
+@businesscentral.action("list_sales_invoices")
+class ListSalesInvoicesAction(ActionHandler):
+    async def execute(self, inputs, context):
+        return await list_sales_invoices(
+            context,
+            {
+                "tenant_id": inputs["tenant_id"],
+                "environment": inputs["environment"],
+                "company_id": inputs["company_id"],
+                "page_size": inputs.get("page_size", 100),
+                "next_link": inputs.get("next_link"),
+                "customer_id": inputs.get("customer_id"),
+                "start_date": inputs.get("start_date"),
+                "end_date": inputs.get("end_date"),
+                "status": inputs.get("status"),
+                "due_before": inputs.get("due_before"),
+                "outstanding_only": inputs.get("outstanding_only", False),
+            },
+        )
+
+
+@businesscentral.action("get_sales_invoice")
+class GetSalesInvoiceAction(ActionHandler):
+    async def execute(self, inputs, context):
+        return await get_resource(
+            context,
+            {
+                "tenant_id": inputs["tenant_id"],
+                "environment": inputs["environment"],
+                "company_id": inputs["company_id"],
+                "sales_invoice_id": inputs["sales_invoice_id"],
+            },
+            "salesInvoices",
+            "sales_invoice_id",
+        )
+
+
+@businesscentral.action("list_sales_invoice_lines")
+class ListSalesInvoiceLinesAction(ActionHandler):
+    async def execute(self, inputs, context):
+        return await list_child_resource(
+            context,
+            {
+                "tenant_id": inputs["tenant_id"],
+                "environment": inputs["environment"],
+                "company_id": inputs["company_id"],
+                "page_size": inputs.get("page_size", 100),
+                "next_link": inputs.get("next_link"),
+                "sales_invoice_id": inputs["sales_invoice_id"],
+            },
+            "salesInvoices",
+            "salesInvoiceLines",
+            "sales_invoice_id",
+        )
+
+
+@businesscentral.action("list_sales_credit_memos")
+class ListSalesCreditMemosAction(ActionHandler):
+    async def execute(self, inputs, context):
+        return await list_resource(
+            context,
+            {
+                "tenant_id": inputs["tenant_id"],
+                "environment": inputs["environment"],
+                "company_id": inputs["company_id"],
+                "page_size": inputs.get("page_size", 100),
+                "next_link": inputs.get("next_link"),
+                "customer_id": inputs.get("customer_id"),
+                "start_date": inputs.get("start_date"),
+                "end_date": inputs.get("end_date"),
+            },
+            "salesCreditMemos",
+            (("customer_id", "customerId", True),),
+            "creditMemoDate",
+        )
+
+
+@businesscentral.action("list_accounts")
+class ListAccountsAction(ActionHandler):
+    async def execute(self, inputs, context):
+        return await list_resource(
+            context,
+            {
+                "tenant_id": inputs["tenant_id"],
+                "environment": inputs["environment"],
+                "company_id": inputs["company_id"],
+                "page_size": inputs.get("page_size", 100),
+                "next_link": inputs.get("next_link"),
+                "account_number": inputs.get("account_number"),
+            },
+            "accounts",
+            (("account_number", "number", False),),
+            None,
+        )
+
+
+@businesscentral.action("list_general_ledger_entries")
+class ListGeneralLedgerEntriesAction(ActionHandler):
+    async def execute(self, inputs, context):
+        return await list_resource(
+            context,
+            {
+                "tenant_id": inputs["tenant_id"],
+                "environment": inputs["environment"],
+                "company_id": inputs["company_id"],
+                "page_size": inputs.get("page_size", 100),
+                "next_link": inputs.get("next_link"),
+                "start_date": inputs.get("start_date"),
+                "end_date": inputs.get("end_date"),
+                "account_id": inputs.get("account_id"),
+                "document_number": inputs.get("document_number"),
+            },
+            "generalLedgerEntries",
+            (("account_id", "accountId", True), ("document_number", "documentNumber", False)),
+            "postingDate",
+        )
+
+
+@businesscentral.action("list_dimensions")
+class ListDimensionsAction(ActionHandler):
+    async def execute(self, inputs, context):
+        return await list_resource(
+            context,
+            {
+                "tenant_id": inputs["tenant_id"],
+                "environment": inputs["environment"],
+                "company_id": inputs["company_id"],
+                "page_size": inputs.get("page_size", 100),
+                "next_link": inputs.get("next_link"),
+            },
+            "dimensions",
+            (),
+            None,
+        )
+
+
+@businesscentral.action("list_dimension_values")
+class ListDimensionValuesAction(ActionHandler):
+    async def execute(self, inputs, context):
+        return await list_child_resource(
+            context,
+            {
+                "tenant_id": inputs["tenant_id"],
+                "environment": inputs["environment"],
+                "company_id": inputs["company_id"],
+                "page_size": inputs.get("page_size", 100),
+                "next_link": inputs.get("next_link"),
+                "dimension_id": inputs["dimension_id"],
+            },
+            "dimensions",
+            "dimensionValues",
+            "dimension_id",
+        )
+
+
+@businesscentral.action("list_general_ledger_entry_dimensions")
+class ListGeneralLedgerEntryDimensionsAction(ActionHandler):
+    async def execute(self, inputs, context):
+        return await list_child_resource(
+            context,
+            {
+                "tenant_id": inputs["tenant_id"],
+                "environment": inputs["environment"],
+                "company_id": inputs["company_id"],
+                "page_size": inputs.get("page_size", 100),
+                "next_link": inputs.get("next_link"),
+                "general_ledger_entry_id": inputs["general_ledger_entry_id"],
+            },
+            "generalLedgerEntries",
+            "dimensionSetLines",
+            "general_ledger_entry_id",
+        )
+
+
+@businesscentral.action("get_receivables_aging")
+class GetReceivablesAgingAction(ActionHandler):
+    async def execute(self, inputs, context):
+        return await get_resource(
+            context,
+            {
+                "tenant_id": inputs["tenant_id"],
+                "environment": inputs["environment"],
+                "company_id": inputs["company_id"],
+                "customer_id": inputs["customer_id"],
+            },
+            "agedAccountsReceivables",
+            "customer_id",
+        )
+
+
+@businesscentral.action("get_payables_aging")
+class GetPayablesAgingAction(ActionHandler):
+    async def execute(self, inputs, context):
+        return await get_resource(
+            context,
+            {
+                "tenant_id": inputs["tenant_id"],
+                "environment": inputs["environment"],
+                "company_id": inputs["company_id"],
+                "vendor_id": inputs["vendor_id"],
+            },
+            "agedAccountsPayables",
+            "vendor_id",
+        )
+
+
+@businesscentral.action("get_trial_balance")
+class GetTrialBalanceAction(ActionHandler):
+    async def execute(self, inputs, context):
+        return await list_resource(
+            context,
+            {
+                "tenant_id": inputs["tenant_id"],
+                "environment": inputs["environment"],
+                "company_id": inputs["company_id"],
+                "page_size": inputs.get("page_size", 100),
+                "next_link": inputs.get("next_link"),
+                "start_date": inputs["start_date"],
+                "end_date": inputs["end_date"],
+            },
+            "trialBalances",
+            (),
+            "dateFilter",
+        )
+
+
+@businesscentral.action("get_income_statement")
+class GetIncomeStatementAction(ActionHandler):
+    async def execute(self, inputs, context):
+        return await list_resource(
+            context,
+            {
+                "tenant_id": inputs["tenant_id"],
+                "environment": inputs["environment"],
+                "company_id": inputs["company_id"],
+                "page_size": inputs.get("page_size", 100),
+                "next_link": inputs.get("next_link"),
+                "start_date": inputs["start_date"],
+                "end_date": inputs["end_date"],
+            },
+            "incomeStatements",
+            (),
+            "dateFilter",
+        )

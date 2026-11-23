@@ -1,13 +1,14 @@
 """Read-only sandbox tests. No customer data or credentials are committed."""
 
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, ResultType
 
-from business_central import business_central
+from businesscentral import businesscentral
 
 pytestmark = pytest.mark.integration
 
@@ -46,7 +47,7 @@ def live_context(env_credentials):
 
 
 async def execute(action, inputs, context):
-    result = await business_central.execute_action(action, inputs, context)
+    result = await businesscentral.execute_action(action, inputs, context)
     assert result.type == ResultType.ACTION, f"{action} failed; check sandbox access and inputs."
     return result.result.data
 
@@ -63,6 +64,12 @@ SIMPLE_LISTS = [
     "list_purchase_orders",
     "list_sales_orders",
     "list_purchase_invoices",
+    "list_customers",
+    "list_sales_invoices",
+    "list_sales_credit_memos",
+    "list_accounts",
+    "list_general_ledger_entries",
+    "list_dimensions",
 ]
 
 
@@ -88,6 +95,13 @@ async def test_read_collection(live_context, live_inputs, action):
         ("list_purchase_order_lines", "list_purchase_orders", "purchase_order_id"),
         ("list_sales_order_lines", "list_sales_orders", "sales_order_id"),
         ("list_purchase_invoice_lines", "list_purchase_invoices", "purchase_invoice_id"),
+        ("get_customer", "list_customers", "customer_id"),
+        ("get_sales_invoice", "list_sales_invoices", "sales_invoice_id"),
+        ("list_sales_invoice_lines", "list_sales_invoices", "sales_invoice_id"),
+        ("list_dimension_values", "list_dimensions", "dimension_id"),
+        ("list_general_ledger_entry_dimensions", "list_general_ledger_entries", "general_ledger_entry_id"),
+        ("get_receivables_aging", "list_customers", "customer_id"),
+        ("get_payables_aging", "list_vendors", "vendor_id"),
     ],
 )
 async def test_document_round_trip(live_context, live_inputs, action, parent, id_key):
@@ -96,8 +110,18 @@ async def test_document_round_trip(live_context, live_inputs, action, parent, id
         pytest.skip(f"Sandbox needs a record for {parent}.")
     record_id = parents["records"][0]["id"]
     data = await execute(action, dict(live_inputs, **{id_key: record_id}), live_context)
-    if action.startswith("get_"):
+    if action == "get_receivables_aging":
+        assert data["record"]["customerId"] == record_id
+        assert "agedAsOfDate" in data["record"] and "currencyCode" in data["record"]
+    elif action == "get_payables_aging":
+        assert data["record"]["vendorId"] == record_id
+        assert "agedAsOfDate" in data["record"] and "currencyCode" in data["record"]
+    elif action.startswith("get_"):
         assert data["record"]["id"] == record_id
+    elif action == "list_dimension_values":
+        assert all(row["dimensionId"] == record_id for row in data["records"])
+    elif action == "list_general_ledger_entry_dimensions":
+        assert all(row["parentId"] == record_id for row in data["records"])
     else:
         assert all(row["documentId"] == record_id for row in data["records"])
 
@@ -119,3 +143,25 @@ async def test_inventory_planning(live_context, live_inputs, action):
     data = await execute(action, inputs, live_context)
     assert data["item_id"] == item["id"]
     assert data["limitations"]
+
+
+@pytest.mark.parametrize("action", ["get_trial_balance", "get_income_statement"])
+async def test_native_financial_reports(live_context, live_inputs, action):
+    today = datetime.now(timezone.utc).date()
+    inputs = dict(live_inputs, start_date=str(today - timedelta(days=30)), end_date=str(today), page_size=2)
+    data = await execute(action, inputs, live_context)
+    assert isinstance(data["records"], list)
+    assert data["count"] == len(data["records"])
+    if data["next_link"]:
+        await execute(action, dict(inputs, next_link=data["next_link"]), live_context)
+
+
+async def test_overdue_open_invoice_filter(live_context, live_inputs):
+    cutoff = str(datetime.now(timezone.utc).date())
+    data = await execute(
+        "list_sales_invoices", dict(live_inputs, outstanding_only=True, due_before=cutoff, page_size=2), live_context
+    )
+    assert all(
+        row["status"] == "Open" and Decimal(str(row["remainingAmount"])) > 0 and row["dueDate"] < cutoff
+        for row in data["records"]
+    )

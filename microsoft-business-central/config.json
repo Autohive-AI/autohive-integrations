@@ -1,8 +1,8 @@
 {
   "name": "Microsoft Dynamics 365 Business Central",
-  "version": "1.0.0",
-  "description": "Read-only inventory visibility, purchasing history and baseline stock planning for Business Central Online.",
-  "entry_point": "business_central.py",
+  "version": "1.1.0",
+  "description": "Read-only inventory planning, client billing, receivables/payables aging and financial reporting for Business Central Online.",
+  "entry_point": "businesscentral.py",
   "auth": {
     "type": "platform",
     "provider": "Microsoft Business Central",
@@ -1549,6 +1549,1150 @@
           "history_rows",
           "sales_entry_count",
           "days_of_cover"
+        ]
+      }
+    },
+    "list_customers": {
+      "display_name": "List Customers",
+      "description": "Find billing customers, payment terms, balances and credit limits for collections workflows. Preserve currency and company context.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "Microsoft Entra tenant ID for this Business Central environment.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Business Central Online environment name, such as Sandbox or Production.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 _-]{0,99}$"
+          },
+          "company_id": {
+            "type": "string",
+            "description": "Company ID returned by list_companies.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Requested server page size; follow next_link while has_more is true."
+          },
+          "next_link": {
+            "type": "string",
+            "description": "Continuation URL from this same action and company. When supplied, its original filters apply.",
+            "maxLength": 16000
+          },
+          "customer_number": {
+            "type": "string",
+            "description": "Exact customer number."
+          }
+        },
+        "required": [
+          "tenant_id",
+          "environment",
+          "company_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Unmodified Business Central records; quantities retain provider units and currencies."
+          },
+          "count": {
+            "type": "integer"
+          },
+          "next_link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "records",
+          "count",
+          "next_link",
+          "has_more"
+        ]
+      }
+    },
+    "get_customer": {
+      "display_name": "Get Customer",
+      "description": "Read one customer, including payment terms and credit limit. This does not calculate a credit recommendation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "Microsoft Entra tenant ID for this Business Central environment.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Business Central Online environment name, such as Sandbox or Production.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 _-]{0,99}$"
+          },
+          "company_id": {
+            "type": "string",
+            "description": "Company ID returned by list_companies.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "customer_id": {
+            "type": "string",
+            "description": "Customer ID from list_customers.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "environment",
+          "company_id",
+          "customer_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "record": {
+            "type": "object",
+            "description": "Unmodified Business Central record."
+          }
+        },
+        "required": [
+          "record"
+        ]
+      }
+    },
+    "list_sales_invoices": {
+      "display_name": "List Sales Invoices",
+      "description": "Read client billing, remaining amounts and due dates. Filter by customer, posting dates, status or overdue open balances. This is current invoice data, not historical receivables aging.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "Microsoft Entra tenant ID for this Business Central environment.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Business Central Online environment name, such as Sandbox or Production.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 _-]{0,99}$"
+          },
+          "company_id": {
+            "type": "string",
+            "description": "Company ID returned by list_companies.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Requested server page size; follow next_link while has_more is true."
+          },
+          "next_link": {
+            "type": "string",
+            "description": "Continuation URL from this same action and company. When supplied, its original filters apply.",
+            "maxLength": 16000
+          },
+          "customer_id": {
+            "type": "string",
+            "description": "Customer ID from list_customers.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Inclusive start date (YYYY-MM-DD).",
+            "format": "date"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "Inclusive end date (YYYY-MM-DD).",
+            "format": "date"
+          },
+          "status": {
+            "type": "string",
+            "description": "Optional invoice status.",
+            "enum": [
+              "Draft",
+              "Open",
+              "Paid",
+              "Canceled",
+              "Corrective"
+            ]
+          },
+          "due_before": {
+            "type": "string",
+            "description": "Only invoices due strictly before this YYYY-MM-DD date.",
+            "format": "date"
+          },
+          "outstanding_only": {
+            "type": "boolean",
+            "default": false,
+            "description": "Only Open invoices with remainingAmount greater than zero; incompatible with a different status."
+          }
+        },
+        "required": [
+          "tenant_id",
+          "environment",
+          "company_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Unmodified Business Central records; quantities retain provider units and currencies."
+          },
+          "count": {
+            "type": "integer"
+          },
+          "next_link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "records",
+          "count",
+          "next_link",
+          "has_more"
+        ]
+      }
+    },
+    "get_sales_invoice": {
+      "display_name": "Get Sales Invoice",
+      "description": "Inspect a client invoice header, currency, payment terms, amounts and status.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "Microsoft Entra tenant ID for this Business Central environment.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Business Central Online environment name, such as Sandbox or Production.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 _-]{0,99}$"
+          },
+          "company_id": {
+            "type": "string",
+            "description": "Company ID returned by list_companies.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "sales_invoice_id": {
+            "type": "string",
+            "description": "Sales invoice API ID (not the visible document number).",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "environment",
+          "company_id",
+          "sales_invoice_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "record": {
+            "type": "object",
+            "description": "Unmodified Business Central record."
+          }
+        },
+        "required": [
+          "record"
+        ]
+      }
+    },
+    "list_sales_invoice_lines": {
+      "display_name": "List Sales Invoice Lines",
+      "description": "Inspect client billing lines, including service/account/resource lines, discounts and tax. Interpret amounts in the parent invoice currency.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "Microsoft Entra tenant ID for this Business Central environment.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Business Central Online environment name, such as Sandbox or Production.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 _-]{0,99}$"
+          },
+          "company_id": {
+            "type": "string",
+            "description": "Company ID returned by list_companies.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Requested server page size; follow next_link while has_more is true."
+          },
+          "next_link": {
+            "type": "string",
+            "description": "Continuation URL from this same action and company. When supplied, its original filters apply.",
+            "maxLength": 16000
+          },
+          "sales_invoice_id": {
+            "type": "string",
+            "description": "Parent sales invoice API ID.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "environment",
+          "company_id",
+          "sales_invoice_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Unmodified Business Central records; quantities retain provider units and currencies."
+          },
+          "count": {
+            "type": "integer"
+          },
+          "next_link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "records",
+          "count",
+          "next_link",
+          "has_more"
+        ]
+      }
+    },
+    "list_sales_credit_memos": {
+      "display_name": "List Sales Credit Memos",
+      "description": "Inspect billing corrections and fee adjustments. Dates filter creditMemoDate; inspect status before including in revenue.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "Microsoft Entra tenant ID for this Business Central environment.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Business Central Online environment name, such as Sandbox or Production.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 _-]{0,99}$"
+          },
+          "company_id": {
+            "type": "string",
+            "description": "Company ID returned by list_companies.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Requested server page size; follow next_link while has_more is true."
+          },
+          "next_link": {
+            "type": "string",
+            "description": "Continuation URL from this same action and company. When supplied, its original filters apply.",
+            "maxLength": 16000
+          },
+          "customer_id": {
+            "type": "string",
+            "description": "Customer ID from list_customers.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Inclusive start date (YYYY-MM-DD).",
+            "format": "date"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "Inclusive end date (YYYY-MM-DD).",
+            "format": "date"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "environment",
+          "company_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Unmodified Business Central records; quantities retain provider units and currencies."
+          },
+          "count": {
+            "type": "integer"
+          },
+          "next_link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "records",
+          "count",
+          "next_link",
+          "has_more"
+        ]
+      }
+    },
+    "list_accounts": {
+      "display_name": "List Accounts",
+      "description": "Read the chart of accounts to identify revenue, direct labour costs and overhead accounts before analysis.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "Microsoft Entra tenant ID for this Business Central environment.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Business Central Online environment name, such as Sandbox or Production.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 _-]{0,99}$"
+          },
+          "company_id": {
+            "type": "string",
+            "description": "Company ID returned by list_companies.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Requested server page size; follow next_link while has_more is true."
+          },
+          "next_link": {
+            "type": "string",
+            "description": "Continuation URL from this same action and company. When supplied, its original filters apply.",
+            "maxLength": 16000
+          },
+          "account_number": {
+            "type": "string",
+            "description": "Exact G/L account number."
+          }
+        },
+        "required": [
+          "tenant_id",
+          "environment",
+          "company_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Unmodified Business Central records; quantities retain provider units and currencies."
+          },
+          "count": {
+            "type": "integer"
+          },
+          "next_link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "records",
+          "count",
+          "next_link",
+          "has_more"
+        ]
+      }
+    },
+    "list_general_ledger_entries": {
+      "display_name": "List General Ledger Entries",
+      "description": "Read posted debit/credit entries by posting date, account or document number. Join dimensions for branch/brand analysis only after confirming their configuration.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "Microsoft Entra tenant ID for this Business Central environment.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Business Central Online environment name, such as Sandbox or Production.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 _-]{0,99}$"
+          },
+          "company_id": {
+            "type": "string",
+            "description": "Company ID returned by list_companies.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Requested server page size; follow next_link while has_more is true."
+          },
+          "next_link": {
+            "type": "string",
+            "description": "Continuation URL from this same action and company. When supplied, its original filters apply.",
+            "maxLength": 16000
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Inclusive start date (YYYY-MM-DD).",
+            "format": "date"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "Inclusive end date (YYYY-MM-DD).",
+            "format": "date"
+          },
+          "account_id": {
+            "type": "string",
+            "description": "Optional G/L account ID.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "document_number": {
+            "type": "string",
+            "description": "Exact document number."
+          }
+        },
+        "required": [
+          "tenant_id",
+          "environment",
+          "company_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Unmodified Business Central records; quantities retain provider units and currencies."
+          },
+          "count": {
+            "type": "integer"
+          },
+          "next_link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "records",
+          "count",
+          "next_link",
+          "has_more"
+        ]
+      }
+    },
+    "list_dimensions": {
+      "display_name": "List Dimensions",
+      "description": "Discover configured financial analysis dimensions. Do not assume branch, brand, consultant or client dimensions exist.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "Microsoft Entra tenant ID for this Business Central environment.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Business Central Online environment name, such as Sandbox or Production.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 _-]{0,99}$"
+          },
+          "company_id": {
+            "type": "string",
+            "description": "Company ID returned by list_companies.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Requested server page size; follow next_link while has_more is true."
+          },
+          "next_link": {
+            "type": "string",
+            "description": "Continuation URL from this same action and company. When supplied, its original filters apply.",
+            "maxLength": 16000
+          }
+        },
+        "required": [
+          "tenant_id",
+          "environment",
+          "company_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Unmodified Business Central records; quantities retain provider units and currencies."
+          },
+          "count": {
+            "type": "integer"
+          },
+          "next_link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "records",
+          "count",
+          "next_link",
+          "has_more"
+        ]
+      }
+    },
+    "list_dimension_values": {
+      "display_name": "List Dimension Values",
+      "description": "Read the configured codes for one dimension, for example a branch or brand where configured.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "Microsoft Entra tenant ID for this Business Central environment.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Business Central Online environment name, such as Sandbox or Production.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 _-]{0,99}$"
+          },
+          "company_id": {
+            "type": "string",
+            "description": "Company ID returned by list_companies.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Requested server page size; follow next_link while has_more is true."
+          },
+          "next_link": {
+            "type": "string",
+            "description": "Continuation URL from this same action and company. When supplied, its original filters apply.",
+            "maxLength": 16000
+          },
+          "dimension_id": {
+            "type": "string",
+            "description": "Parent dimension ID from list_dimensions.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "environment",
+          "company_id",
+          "dimension_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Unmodified Business Central records; quantities retain provider units and currencies."
+          },
+          "count": {
+            "type": "integer"
+          },
+          "next_link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "records",
+          "count",
+          "next_link",
+          "has_more"
+        ]
+      }
+    },
+    "list_general_ledger_entry_dimensions": {
+      "display_name": "List General Ledger Entry Dimensions",
+      "description": "Read dimension assignments for one posted ledger entry; join by parentId, not by an assumed account/branch mapping.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "Microsoft Entra tenant ID for this Business Central environment.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Business Central Online environment name, such as Sandbox or Production.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 _-]{0,99}$"
+          },
+          "company_id": {
+            "type": "string",
+            "description": "Company ID returned by list_companies.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Requested server page size; follow next_link while has_more is true."
+          },
+          "next_link": {
+            "type": "string",
+            "description": "Continuation URL from this same action and company. When supplied, its original filters apply.",
+            "maxLength": 16000
+          },
+          "general_ledger_entry_id": {
+            "type": "string",
+            "description": "Parent ledger entry ID.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "environment",
+          "company_id",
+          "general_ledger_entry_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Unmodified Business Central records; quantities retain provider units and currencies."
+          },
+          "count": {
+            "type": "integer"
+          },
+          "next_link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "records",
+          "count",
+          "next_link",
+          "has_more"
+        ]
+      }
+    },
+    "get_receivables_aging": {
+      "display_name": "Get Receivables Aging",
+      "description": "Read Business Central native aging for one customer. Preserve returned agedAsOfDate, periodLengthFilter and currencyCode; this action uses BC report defaults.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "Microsoft Entra tenant ID for this Business Central environment.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Business Central Online environment name, such as Sandbox or Production.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 _-]{0,99}$"
+          },
+          "company_id": {
+            "type": "string",
+            "description": "Company ID returned by list_companies.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "customer_id": {
+            "type": "string",
+            "description": "Customer ID from list_customers.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "environment",
+          "company_id",
+          "customer_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "record": {
+            "type": "object",
+            "description": "Unmodified Business Central record."
+          }
+        },
+        "required": [
+          "record"
+        ]
+      }
+    },
+    "get_payables_aging": {
+      "display_name": "Get Payables Aging",
+      "description": "Read Business Central native aging for one vendor, using BC report defaults. Preserve returned aging date, periods and currency.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "Microsoft Entra tenant ID for this Business Central environment.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Business Central Online environment name, such as Sandbox or Production.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 _-]{0,99}$"
+          },
+          "company_id": {
+            "type": "string",
+            "description": "Company ID returned by list_companies.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "vendor_id": {
+            "type": "string",
+            "description": "Vendor ID from list_vendors.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "environment",
+          "company_id",
+          "vendor_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "record": {
+            "type": "object",
+            "description": "Unmodified Business Central record."
+          }
+        },
+        "required": [
+          "record"
+        ]
+      }
+    },
+    "get_trial_balance": {
+      "display_name": "Get Trial Balance",
+      "description": "Read the native trial balance for an explicit period. Dates filter the report dateFilter, not postingDate. Preserve formatted report amounts.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "Microsoft Entra tenant ID for this Business Central environment.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Business Central Online environment name, such as Sandbox or Production.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 _-]{0,99}$"
+          },
+          "company_id": {
+            "type": "string",
+            "description": "Company ID returned by list_companies.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Requested server page size; follow next_link while has_more is true."
+          },
+          "next_link": {
+            "type": "string",
+            "description": "Continuation URL from this same action and company. When supplied, its original filters apply.",
+            "maxLength": 16000
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Inclusive start date (YYYY-MM-DD).",
+            "format": "date"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "Inclusive end date (YYYY-MM-DD).",
+            "format": "date"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "environment",
+          "company_id",
+          "start_date",
+          "end_date"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Unmodified Business Central records; quantities retain provider units and currencies."
+          },
+          "count": {
+            "type": "integer"
+          },
+          "next_link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "records",
+          "count",
+          "next_link",
+          "has_more"
+        ]
+      }
+    },
+    "get_income_statement": {
+      "display_name": "Get Income Statement",
+      "description": "Read native income statement rows for an explicit period. Preserve lineType/indentation; subtotal/header rows must not be summed with detail rows.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "Microsoft Entra tenant ID for this Business Central environment.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Business Central Online environment name, such as Sandbox or Production.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9 _-]{0,99}$"
+          },
+          "company_id": {
+            "type": "string",
+            "description": "Company ID returned by list_companies.",
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Requested server page size; follow next_link while has_more is true."
+          },
+          "next_link": {
+            "type": "string",
+            "description": "Continuation URL from this same action and company. When supplied, its original filters apply.",
+            "maxLength": 16000
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Inclusive start date (YYYY-MM-DD).",
+            "format": "date"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "Inclusive end date (YYYY-MM-DD).",
+            "format": "date"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "environment",
+          "company_id",
+          "start_date",
+          "end_date"
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Unmodified Business Central records; quantities retain provider units and currencies."
+          },
+          "count": {
+            "type": "integer"
+          },
+          "next_link": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "records",
+          "count",
+          "next_link",
+          "has_more"
         ]
       }
     }
