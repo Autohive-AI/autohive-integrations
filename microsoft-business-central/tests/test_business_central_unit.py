@@ -1,7 +1,10 @@
-from unittest.mock import patch
+import asyncio
+from urllib.parse import parse_qs, urlsplit
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError, ResultType
+from aiohttp import ClientConnectionError
+from autohive_integrations_sdk import ExecutionContext, FetchResponse, HTTPError, RateLimitError, ResultType
 
 from businesscentral import businesscentral, base_url
 
@@ -65,7 +68,7 @@ async def test_list_actions_preserve_provider_data(mock_context, action, extra, 
     assert call.args[0] == f"{base_url(inputs, action != 'list_companies')}/{resource}"
     assert call.kwargs["method"] == "GET"
     assert call.kwargs["headers"]["Prefer"] == "odata.maxpagesize=20"
-    assert "$top" not in call.kwargs["params"]
+    assert "$top" not in parse_qs(urlsplit(call.args[0]).query)
 
 
 @pytest.mark.parametrize("action,extra,resource", LIST_CASES)
@@ -100,7 +103,7 @@ async def test_filters_escape_odata_strings_and_validate_dates(mock_context):
         mock_context,
     )
     assert_success(result)
-    assert mock_context.fetch.await_args.kwargs["params"]["$filter"] == (
+    assert parse_qs(urlsplit(mock_context.fetch.await_args.args[0]).query)["$filter"][0] == (
         "itemNumber eq 'BOX''1' and postingDate ge 2026-01-01 and postingDate le 2026-01-31"
     )
 
@@ -124,7 +127,7 @@ async def test_filters_escape_odata_strings_and_validate_dates(mock_context):
 async def test_resource_filters(mock_context, action, extra, expected):
     mock_context.fetch.return_value = response({"value": []})
     assert_success(await businesscentral.execute_action(action, dict(INPUTS, **extra), mock_context))
-    assert mock_context.fetch.await_args.kwargs["params"]["$filter"] == expected
+    assert parse_qs(urlsplit(mock_context.fetch.await_args.args[0]).query)["$filter"][0] == expected
 
 
 async def test_continuation_preserves_query_and_ignores_new_filters(mock_context):
@@ -201,6 +204,51 @@ async def test_sdk_rate_limit_exception_respects_retry_after(mock_context):
         result = await businesscentral.execute_action("list_items", INPUTS, mock_context)
     assert result.type == ResultType.ACTION_ERROR
     sleep.assert_not_awaited()
+
+
+async def test_sdk_short_rate_limit_exception_waits_then_recovers(mock_context):
+    mock_context.fetch.side_effect = [RateLimitError(2, 429, "Rate limit exceeded"), response({"value": []})]
+    with patch("businesscentral.asyncio.sleep") as sleep:
+        assert_success(await businesscentral.execute_action("list_items", INPUTS, mock_context))
+    sleep.assert_awaited_once_with(2)
+    assert mock_context.fetch.await_count == 2
+
+
+@pytest.mark.parametrize("error", [asyncio.TimeoutError(), ClientConnectionError("private transport detail")])
+@pytest.mark.parametrize("action,extra", [("list_items", {}), ("get_item", {"item_id": ITEM})])
+async def test_exhausted_transport_failures_return_sanitized_retry_guidance(mock_context, error, action, extra):
+    mock_context.fetch.side_effect = error
+    result = await businesscentral.execute_action(action, dict(INPUTS, **extra), mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Retry this action later" in result.result.message
+    assert "private" not in result.result.message
+
+
+async def test_read_cancellation_propagates(mock_context):
+    mock_context.fetch.side_effect = asyncio.CancelledError()
+    with pytest.raises(asyncio.CancelledError):
+        await businesscentral.execute_action("list_items", INPUTS, mock_context)
+
+
+async def test_sdk_network_retry_does_not_duplicate_odata_filters():
+    context = ExecutionContext(
+        auth={"auth_type": "PlatformOauth2", "credentials": {"access_token": "test-token"}},  # nosec B105
+        request_config={"max_retries": 1, "timeout": 30},
+    )
+    provider_response = MagicMock(status=200, headers={"Content-Type": "application/json"}, ok=True)
+    provider_response.json = AsyncMock(return_value={"value": []})
+    request = MagicMock()
+    request.__aenter__ = AsyncMock(side_effect=[ClientConnectionError("connection reset"), provider_response])
+    request.__aexit__ = AsyncMock(return_value=False)
+    context._session = MagicMock()
+    context._session.request.return_value = request
+    with patch("businesscentral.asyncio.sleep"):
+        assert_success(await businesscentral.execute_action("list_items", dict(INPUTS, item_number="BOX'+1"), context))
+    calls = context._session.request.call_args_list
+    assert len(calls) == 2
+    assert calls[0].kwargs["url"] == calls[1].kwargs["url"]
+    for call in calls:
+        assert parse_qs(urlsplit(call.kwargs["url"]).query) == {"$filter": ["number eq 'BOX''+1'"]}
 
 
 async def test_invalid_retry_header_uses_backoff(mock_context):
@@ -311,7 +359,9 @@ async def test_forecast_uses_net_sales_all_calendar_days_and_all_pages(mock_cont
     assert data["average_daily_demand"] == "3"
     assert data["forecast_demand"] == "90"
     assert data["projected_inventory"] == "10"
-    assert mock_context.fetch.await_args_list[1].kwargs["params"]["$filter"] == (
+    for call in mock_context.fetch.await_args_list[1:]:
+        assert call.kwargs["headers"]["Prefer"] == "odata.maxpagesize=1000"
+    assert parse_qs(urlsplit(mock_context.fetch.await_args_list[1].args[0]).query)["$filter"][0] == (
         "itemNumber eq 'BOX-1' and postingDate ge 2026-01-01 and postingDate le 2026-01-10"
     )
 
@@ -325,7 +375,7 @@ async def test_no_positive_net_demand_is_explicit(mock_context, rows, net):
     assert data["days_of_cover"] is None
 
 
-@pytest.mark.parametrize("inventory,projected,cover", [(-5, "-95", "0"), (10, "-80", None)])
+@pytest.mark.parametrize("inventory,projected,cover", [(-5, "-95", "0"), (12, "-78", "4")])
 async def test_stockout_projection_preserves_negative_stock(mock_context, inventory, projected, cover):
     mock_context.fetch.side_effect = [
         response(dict(ITEM_DATA, inventory=inventory)),
@@ -339,8 +389,7 @@ async def test_stockout_projection_preserves_negative_stock(mock_context, invent
     ]
     data = assert_success(await businesscentral.execute_action("forecast_stock", FORECAST, mock_context))
     assert data["projected_inventory"] == projected
-    if cover is not None:
-        assert data["days_of_cover"] == cover
+    assert data["days_of_cover"] == cover
 
 
 async def test_forecast_fails_when_history_exceeds_bound(mock_context):

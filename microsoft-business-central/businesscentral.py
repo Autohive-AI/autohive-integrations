@@ -5,7 +5,7 @@ import re
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, urlencode, urlsplit
 from uuid import UUID
 
 from aiohttp import ClientError
@@ -73,6 +73,10 @@ def filters(inputs, fields=(), date_field=None):
             value = guid(inputs[input_name]) if is_guid else odata_string(inputs[input_name])
             clauses.append(f"{api_name} eq {value}")
     if date_field:
+        if date_field == "dateFilter" and (not inputs.get("start_date") or not inputs.get("end_date")):
+            raise BusinessCentralError(
+                "Financial reports require non-empty start_date and end_date in YYYY-MM-DD format."
+            )
         start, end = date_range(inputs.get("start_date"), inputs.get("end_date"))
         if start:
             clauses.append(f"{date_field} ge {start.isoformat()}")
@@ -94,10 +98,13 @@ def http_message(status):
 async def get_json(context, url, params=None, page_size=100):
     if not context.auth.get("credentials", {}).get("access_token"):
         raise BusinessCentralError("Connect a Business Central OAuth account before running this action.")
+    # SDK 2.0.1 reuses the encoded URL on network retries. Do not pass params again.
+    if params:
+        url += ("&" if "?" in url else "?") + urlencode(params)
     for attempt in range(3):
         try:
             response = await context.fetch(
-                url, method="GET", params=params, headers={"Prefer": f"odata.maxpagesize={page_size}"}
+                url, method="GET", params=None, headers={"Prefer": f"odata.maxpagesize={page_size}"}
             )
             status, headers = response.status, response.headers
         except HTTPError as exc:
@@ -105,6 +112,10 @@ async def get_json(context, url, params=None, page_size=100):
             if hasattr(exc, "retry_after"):
                 headers = dict(headers, **{"Retry-After": str(exc.retry_after)})
             response = None
+        except (ClientError, asyncio.TimeoutError) as exc:
+            raise BusinessCentralError(
+                "Business Central connection failed or timed out. Retry this action later."
+            ) from exc
         if status in (429, 502, 503, 504) and attempt < 2:
             retry_after = next((v for k, v in headers.items() if k.lower() == "retry-after"), None)
             try:
@@ -691,7 +702,7 @@ class ForecastStockAction(ActionHandler):
                 if link in seen or len(seen) >= 100 or row_count >= MAX_HISTORY_ROWS:
                     raise BusinessCentralError("History is incomplete or repeats pages. Choose a shorter window.")
                 seen.add(link)
-                page_inputs = {"next_link": link}
+                page_inputs = {"next_link": link, "page_size": 1000}
             daily = max(Decimal(0), net_sales) / Decimal((end - start).days + 1)
             inventory = decimal_value(item.get("inventory"), "inventory")
             demand = daily * inputs["forecast_days"]

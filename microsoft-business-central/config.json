@@ -1,6 +1,6 @@
 {
   "name": "Microsoft Dynamics 365 Business Central",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Purchasing, inventory planning, client billing, receivables/payables aging and financial reporting for Business Central Online.",
   "entry_point": "businesscentral.py",
   "auth": {
@@ -1736,7 +1736,9 @@
             "type": "string",
             "description": "Optional invoice status.",
             "enum": [
+              " ",
               "Draft",
+              "In Review",
               "Open",
               "Paid",
               "Canceled",
@@ -2562,12 +2564,14 @@
           "start_date": {
             "type": "string",
             "description": "Inclusive start date (YYYY-MM-DD).",
-            "format": "date"
+            "format": "date",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
           },
           "end_date": {
             "type": "string",
             "description": "Inclusive end date (YYYY-MM-DD).",
-            "format": "date"
+            "format": "date",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
           }
         },
         "required": [
@@ -2648,12 +2652,14 @@
           "start_date": {
             "type": "string",
             "description": "Inclusive start date (YYYY-MM-DD).",
-            "format": "date"
+            "format": "date",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
           },
           "end_date": {
             "type": "string",
             "description": "Inclusive end date (YYYY-MM-DD).",
-            "format": "date"
+            "format": "date",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
           }
         },
         "required": [

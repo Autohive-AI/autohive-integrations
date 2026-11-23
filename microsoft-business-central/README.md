@@ -51,7 +51,7 @@ Collection actions accept `page_size` (1–1000, default 100) and `next_link`. T
 | `estimate_reorder_cost` | Required `item_id`, positive `quantity` in base units | Decimal-string quantity, unit cost and estimated cost, local currency, base unit, cost basis and limitations. |
 | `forecast_stock` | Required `item_id`, `start_date`, `end_date`, `forecast_days` (1–365) | Demand baseline, current/projected inventory, days of cover, source counts, dates, method and limitations. Numeric calculations return decimal strings. |
 
-Dates use `YYYY-MM-DD`, inclusive. IDs are GUIDs, not visible document/item numbers. Errors return `ActionError` with sanitized setup/retry guidance. Reads retry transient 429/502/503/504 failures at most twice; long `Retry-After` delays return an error so the workflow can retry later. SDK network retries also apply.
+Dates use `YYYY-MM-DD`, inclusive. IDs are GUIDs, not visible document/item numbers. Errors return `ActionError` with sanitized setup/retry guidance. Reads retry transient 429/502/503/504 failures at most twice; long `Retry-After` delays return an error so the workflow can retry later. SDK network retries also apply; queries are encoded once so retries preserve a single copy of each filter. Exhausted connection failures return sanitized retry guidance.
 
 ## Creating purchase orders
 
@@ -83,7 +83,7 @@ The connected user needs delete permissions for purchase documents. Business Cen
 
 These reads support recruitment/labour-hire finance workflows: client billing checks, collections worklists, supplier liabilities and accounting analysis across configured business units. They expose standard accounting data; customer-specific brands, branch codes, payroll accounts and legal entities are not hardcoded.
 
-All use the common tenant/environment/company inputs above. Collections return `{records, count, next_link, has_more}`; single-record reads return `{record}`. No additional OAuth scopes are requested, but the connected user's BC permission sets must cover the finance objects being read.
+All use the common tenant/environment/company inputs above. Trial balance and income statement require both period dates to be non-empty `YYYY-MM-DD` values, including on continuation requests. Collections return `{records, count, next_link, has_more}`; single-record reads return `{record}`. No additional OAuth scopes are requested, but the connected user's BC permission sets must cover the finance objects being read.
 
 | Action | Additional inputs | Output/use |
 |---|---|---|
@@ -105,7 +105,7 @@ All use the common tenant/environment/company inputs above. Collections return `
 
 Suggested workflows:
 
-1. **Collections:** list customers, then read each customer's native aging. Investigate overdue invoices with `list_sales_invoices(outstanding_only=true, due_before="YYYY-MM-DD")`; retrieve lines to understand the charges. `due_before` is exclusive, and outstanding-only selects `Open` invoices with positive `remainingAmount`. A conflicting status is rejected. These are current balances; filtering posting dates does not reconstruct historical outstanding debt.
+1. **Collections:** list customers, then read each customer's native aging. Investigate overdue invoices with `list_sales_invoices(outstanding_only=true, due_before="YYYY-MM-DD")`; retrieve lines to understand the charges. `due_before` is exclusive, and outstanding-only selects `Open` invoices with positive `remainingAmount`. The status filter accepts the documented blank status (`" "`), `Draft`, `In Review`, `Open`, `Paid`, `Canceled` and `Corrective`. A conflicting outstanding-only status is rejected. These are current balances; filtering posting dates does not reconstruct historical outstanding debt.
 2. **Billing corrections:** inspect sales invoice lines and related credit memo headers by customer and credit-memo date. Check status and invoice references before adjusting a revenue analysis. Draft/canceled documents and invoice totals are not automatically recognised revenue.
 3. **Business-unit performance:** discover dimensions and their values; retrieve posted entries and each entry's dimension assignments. Use the customer's confirmed account/dimension mappings to analyse revenue, direct labour expense and overhead. The native income statement is company-level; it does not accept a fabricated branch filter. Dimensions are not assumed to identify a brand, site, client or consultant.
 4. **Cash and close:** review customer/vendor aging together for receivable/payable visibility, and use the trial balance and income statement for period reconciliation. This is not a payroll funding forecast or bank reconciliation.

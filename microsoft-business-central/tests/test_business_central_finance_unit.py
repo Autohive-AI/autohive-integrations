@@ -1,5 +1,7 @@
 """Finance request contracts and preservation of accounting semantics."""
 
+from urllib.parse import parse_qs, urlsplit
+
 import pytest
 from autohive_integrations_sdk import FetchResponse, HTTPError, ResultType
 
@@ -61,7 +63,7 @@ async def test_finance_routes_and_unmodified_response(mock_context, action, extr
     data = success(await businesscentral.execute_action(action, dict(INPUTS, **extra), mock_context))
     assert (data["record"] if action in GETS else data["records"][0]) == record
     call = mock_context.fetch.await_args
-    assert call.args[0] == f"{base_url(INPUTS)}/{path}"
+    assert call.args[0].split("?", 1)[0] == f"{base_url(INPUTS)}/{path}"
     assert call.kwargs["method"] == "GET"
     if action in GETS:
         assert call.kwargs["params"] is None
@@ -113,6 +115,8 @@ async def test_finance_collections_follow_validated_resource_paging(mock_context
             f"customerId eq {RECORD} and postingDate ge 2026-10-01 and postingDate le 2026-10-31",
         ),
         ("list_sales_invoices", {"status": "Draft"}, "status eq 'Draft'"),
+        ("list_sales_invoices", {"status": "In Review"}, "status eq 'In Review'"),
+        ("list_sales_invoices", {"status": " "}, "status eq ' '"),
         (
             "list_sales_invoices",
             {"outstanding_only": True, "due_before": "2026-11-01"},
@@ -128,7 +132,7 @@ async def test_finance_collections_follow_validated_resource_paging(mock_context
 async def test_finance_filters(mock_context, action, extra, expected):
     mock_context.fetch.return_value = response({"value": []})
     success(await businesscentral.execute_action(action, dict(INPUTS, **extra), mock_context))
-    assert mock_context.fetch.await_args.kwargs["params"]["$filter"] == expected
+    assert parse_qs(urlsplit(mock_context.fetch.await_args.args[0]).query)["$filter"][0] == expected
 
 
 @pytest.mark.parametrize(
@@ -136,6 +140,7 @@ async def test_finance_filters(mock_context, action, extra, expected):
     [
         ("list_sales_invoices", {"outstanding_only": True, "status": "Paid"}),
         ("list_sales_invoices", {"outstanding_only": True, "status": "Draft"}),
+        ("list_sales_invoices", {"outstanding_only": True, "status": "In Review"}),
         ("list_sales_invoices", {"due_before": "2026-02-30"}),
         ("list_sales_invoices", {"start_date": "2026-10-31", "end_date": "2026-10-01"}),
         ("list_sales_credit_memos", {"start_date": "2026-10-31", "end_date": "2026-10-01"}),
@@ -146,6 +151,19 @@ async def test_finance_filters(mock_context, action, extra, expected):
 )
 async def test_invalid_finance_inputs_do_not_fetch(mock_context, action, extra):
     result = await businesscentral.execute_action(action, dict(INPUTS, **extra), mock_context)
+    assert result.type in (ResultType.VALIDATION_ERROR, ResultType.ACTION_ERROR)
+    mock_context.fetch.assert_not_awaited()
+
+
+@pytest.mark.parametrize("action", ["get_trial_balance", "get_income_statement"])
+@pytest.mark.parametrize("start,end", [("", ""), ("", "2026-10-31"), ("2026-10-01", ""), (" ", "2026-10-31")])
+@pytest.mark.parametrize("continuation", [False, True])
+async def test_financial_reports_reject_empty_periods_before_fetch(mock_context, action, start, end, continuation):
+    inputs = dict(INPUTS, start_date=start, end_date=end)
+    if continuation:
+        resource = "trialBalances" if action == "get_trial_balance" else "incomeStatements"
+        inputs["next_link"] = f"{base_url(INPUTS)}/{resource}?$skiptoken=next"
+    result = await businesscentral.execute_action(action, inputs, mock_context)
     assert result.type in (ResultType.VALIDATION_ERROR, ResultType.ACTION_ERROR)
     mock_context.fetch.assert_not_awaited()
 
