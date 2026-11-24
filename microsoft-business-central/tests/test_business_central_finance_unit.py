@@ -3,7 +3,7 @@
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-from autohive_integrations_sdk import FetchResponse, HTTPError, ResultType
+from autohive_integrations_sdk import FetchResponse, ResultType
 
 from businesscentral import base_url, businesscentral
 
@@ -59,10 +59,10 @@ async def test_finance_routes_and_unmodified_response(mock_context, action, extr
         "status": "Open",
         "totalDebit": "1,250.00",
     }
-    mock_context.fetch.return_value = response(record if action in GETS else {"value": [record]})
+    mock_context.request.return_value = response(record if action in GETS else {"value": [record]})
     data = success(await businesscentral.execute_action(action, dict(INPUTS, **extra), mock_context))
     assert (data["record"] if action in GETS else data["records"][0]) == record
-    call = mock_context.fetch.await_args
+    call = mock_context.request.await_args
     assert call.args[0].split("?", 1)[0] == f"{base_url(INPUTS)}/{path}"
     assert call.kwargs["method"] == "GET"
     if action in GETS:
@@ -71,7 +71,7 @@ async def test_finance_routes_and_unmodified_response(mock_context, action, extr
 
 @pytest.mark.parametrize("action,extra,path", CASES)
 async def test_finance_permission_failures_are_sanitized(mock_context, action, extra, path):
-    mock_context.fetch.side_effect = HTTPError(403, "private-accounting-data")
+    mock_context.request.return_value = FetchResponse(status=403, headers={}, data={"error": "private-accounting-data"})
     result = await businesscentral.execute_action(action, dict(INPUTS, **extra), mock_context)
     assert result.type == ResultType.ACTION_ERROR
     assert "permissions" in result.result.message
@@ -81,13 +81,13 @@ async def test_finance_permission_failures_are_sanitized(mock_context, action, e
 @pytest.mark.parametrize("action,extra,path", [case for case in CASES if case[0] not in GETS])
 async def test_finance_collections_follow_validated_resource_paging(mock_context, action, extra, path):
     link = f"{base_url(INPUTS)}/{path}?$skiptoken=finance%2Bnext"
-    mock_context.fetch.return_value = response({"value": [], "@odata.nextLink": link})
+    mock_context.request.return_value = response({"value": [], "@odata.nextLink": link})
     data = success(await businesscentral.execute_action(action, dict(INPUTS, **extra), mock_context))
     assert data["has_more"] and data["next_link"] == link
-    mock_context.fetch.return_value = response({"value": []})
+    mock_context.request.return_value = response({"value": []})
     data = success(await businesscentral.execute_action(action, dict(INPUTS, **extra, next_link=link), mock_context))
-    assert mock_context.fetch.await_args.args[0] == link
-    assert mock_context.fetch.await_args.kwargs["params"] is None
+    assert mock_context.request.await_args.args[0] == link
+    assert mock_context.request.await_args.kwargs["params"] is None
     assert data["count"] == 0 and not data["has_more"]
 
 
@@ -130,9 +130,9 @@ async def test_finance_collections_follow_validated_resource_paging(mock_context
     ],
 )
 async def test_finance_filters(mock_context, action, extra, expected):
-    mock_context.fetch.return_value = response({"value": []})
+    mock_context.request.return_value = response({"value": []})
     success(await businesscentral.execute_action(action, dict(INPUTS, **extra), mock_context))
-    assert parse_qs(urlsplit(mock_context.fetch.await_args.args[0]).query)["$filter"][0] == expected
+    assert parse_qs(urlsplit(mock_context.request.await_args.args[0]).query)["$filter"][0] == expected
 
 
 @pytest.mark.parametrize(
@@ -152,7 +152,7 @@ async def test_finance_filters(mock_context, action, extra, expected):
 async def test_invalid_finance_inputs_do_not_fetch(mock_context, action, extra):
     result = await businesscentral.execute_action(action, dict(INPUTS, **extra), mock_context)
     assert result.type in (ResultType.VALIDATION_ERROR, ResultType.ACTION_ERROR)
-    mock_context.fetch.assert_not_awaited()
+    mock_context.request.assert_not_awaited()
 
 
 @pytest.mark.parametrize("action", ["get_trial_balance", "get_income_statement"])
@@ -165,7 +165,7 @@ async def test_financial_reports_reject_empty_periods_before_fetch(mock_context,
         inputs["next_link"] = f"{base_url(INPUTS)}/{resource}?$skiptoken=next"
     result = await businesscentral.execute_action(action, inputs, mock_context)
     assert result.type in (ResultType.VALIDATION_ERROR, ResultType.ACTION_ERROR)
-    mock_context.fetch.assert_not_awaited()
+    mock_context.request.assert_not_awaited()
 
 
 @pytest.mark.parametrize("action,key", [("get_receivables_aging", "customer_id"), ("get_payables_aging", "vendor_id")])
@@ -182,10 +182,10 @@ async def test_aging_retains_report_date_periods_currency_and_credits(mock_conte
         "agedAsOfDate": "2026-11-01",
         "periodLengthFilter": "30D",
     }
-    mock_context.fetch.return_value = response(record)
+    mock_context.request.return_value = response(record)
     data = success(await businesscentral.execute_action(action, dict(INPUTS, **{key: RECORD}), mock_context))
     assert data["record"] == record
-    assert mock_context.fetch.await_args.kwargs["params"] is None
+    assert mock_context.request.await_args.kwargs["params"] is None
 
 
 async def test_income_statement_preserves_headers_and_subtotals(mock_context):
@@ -194,14 +194,14 @@ async def test_income_statement_preserves_headers_and_subtotals(mock_context):
         {"lineType": "detail", "display": "Service income", "netChange": 1200, "indentation": 1},
         {"lineType": "total", "display": "Total revenue", "netChange": 1200, "indentation": 0},
     ]
-    mock_context.fetch.return_value = response({"value": rows})
+    mock_context.request.return_value = response({"value": rows})
     data = success(await businesscentral.execute_action("get_income_statement", dict(INPUTS, **PERIOD), mock_context))
     assert data["records"] == rows
 
 
 async def test_dimensions_preserve_configured_mapping_without_assuming_branch_codes(mock_context):
     record = {"parentId": RECORD, "code": "COSTCENTRE", "valueCode": "CC10", "valueDisplayName": "Example centre"}
-    mock_context.fetch.return_value = response({"value": [record]})
+    mock_context.request.return_value = response({"value": [record]})
     result = await businesscentral.execute_action(
         "list_general_ledger_entry_dimensions", dict(INPUTS, general_ledger_entry_id=RECORD), mock_context
     )

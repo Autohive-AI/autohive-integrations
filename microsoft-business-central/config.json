@@ -1,6 +1,6 @@
 {
   "name": "Microsoft Dynamics 365 Business Central",
-  "version": "1.3.1",
+  "version": "1.3.3",
   "description": "Purchasing, inventory planning, client billing, receivables/payables aging and financial reporting for Business Central Online.",
   "entry_point": "businesscentral.py",
   "auth": {

@@ -8,8 +8,9 @@ from pathlib import Path
 from urllib.parse import quote, urlencode, urlsplit
 from uuid import UUID
 
+import aiohttp
 from aiohttp import ClientError
-from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, HTTPError, Integration
+from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, FetchResponse, Integration
 
 businesscentral = Integration.load(Path(__file__).with_name("config.json"))
 HOST = "https://api.businesscentral.dynamics.com"
@@ -95,27 +96,78 @@ def http_message(status):
     return messages.get(status, f"Business Central request failed (HTTP {status}).")
 
 
+async def request(context, url, *, method="GET", headers=None, json=None, params=None):
+    """Keep provider bodies and request details out of SDK error logging.
+
+    The ExecutionContext owns and closes its session. Reuse it for paged reads,
+    but disable aiohttp's implicit replay so a DELETE with a lost response is
+    never sent twice. Only get_json may retry, and only for reads.
+    """
+    token = context.auth.get("credentials", {}).get("access_token")
+    if not token:
+        raise BusinessCentralError("Connect a Business Central OAuth account before running this action.")
+    session = getattr(context, "_session", None)
+    if session is None or session.closed:
+        session = aiohttp.ClientSession()
+        context._session = session
+    # aiohttp 3.x has no public switch for connection replay. Fail closed if
+    # this compatibility dependency changes; keep it covered by a socket test.
+    if not hasattr(session, "_retry_connection"):
+        raise BusinessCentralError("Unsupported HTTP transport: automatic request replay cannot be disabled.")
+    session._retry_connection = False
+    request_headers = {"Authorization": f"Bearer {token}", **(headers or {})}
+    try:
+        async with session.request(
+            method=method,
+            url=url,
+            params=params,
+            json=json,
+            headers=request_headers,
+            timeout=aiohttp.ClientTimeout(total=context.config.get("timeout", 30)),
+            allow_redirects=False,
+            raise_for_status=False,
+            ssl=True,
+        ) as response:
+            data = None
+            # Error bodies can echo personal information. Do not read or parse
+            # them; callers need only the status and retry header.
+            if response.status in (200, 201):
+                try:
+                    data = await response.json()
+                except (ValueError, UnicodeError, aiohttp.ContentTypeError):
+                    message = "Business Central returned an invalid JSON response."
+                    if method != "GET":
+                        message += " Check Business Central before retrying."
+                    raise BusinessCentralError(message) from None
+            return FetchResponse(status=response.status, headers=dict(response.headers), data=data)
+    except (ClientError, asyncio.TimeoutError):
+        # Exception strings may contain URLs, query values or credentials.
+        raise ClientError("Business Central connection failed or timed out.") from None
+    except BusinessCentralError:
+        raise
+    except ValueError:
+        raise BusinessCentralError("Business Central request could not be prepared.") from None
+
+
 async def get_json(context, url, params=None, page_size=100):
     if not context.auth.get("credentials", {}).get("access_token"):
         raise BusinessCentralError("Connect a Business Central OAuth account before running this action.")
-    # SDK 2.0.1 reuses the encoded URL on network retries. Do not pass params again.
+    # Encode query values once before the read retry loop.
     if params:
         url += ("&" if "?" in url else "?") + urlencode(params)
     for attempt in range(3):
         try:
-            response = await context.fetch(
-                url, method="GET", params=None, headers={"Prefer": f"odata.maxpagesize={page_size}"}
+            response = await request(
+                context, url, method="GET", params=None, headers={"Prefer": f"odata.maxpagesize={page_size}"}
             )
             status, headers = response.status, response.headers
-        except HTTPError as exc:
-            status, headers = exc.status, getattr(exc, "headers", {})
-            if hasattr(exc, "retry_after"):
-                headers = dict(headers, **{"Retry-After": str(exc.retry_after)})
-            response = None
-        except (ClientError, asyncio.TimeoutError) as exc:
+        except (ClientError, asyncio.TimeoutError):
+            if attempt < 2:
+                await asyncio.sleep(2**attempt)
+                continue
             raise BusinessCentralError(
                 "Business Central connection failed or timed out. Retry this action later."
-            ) from exc
+            ) from None
         if status in (429, 502, 503, 504) and attempt < 2:
             retry_after = next((v for k, v in headers.items() if k.lower() == "retry-after"), None)
             try:
@@ -247,19 +299,16 @@ class CreatePurchaseOrderAction(ActionHandler):
                     lines.append(row)
                 body["purchaseOrderLines"] = lines
             try:
-                # Start at the SDK retry limit: a lost POST response must not create a second order.
-                response = await context.fetch(
+                response = await request(
+                    context,
                     url,
                     method="POST",
                     json=body,
-                    retry_count=context.config.get("max_retries", 3),
                 )
-            except HTTPError as exc:
-                raise BusinessCentralError(http_message(exc.status)) from exc
-            except (ClientError, asyncio.TimeoutError) as exc:
+            except (ClientError, asyncio.TimeoutError):
                 raise BusinessCentralError(
                     "Purchase order outcome is unknown. Check Business Central before retrying to avoid duplicates."
-                ) from exc
+                ) from None
             if response.status != 201:
                 raise BusinessCentralError(http_message(response.status))
             record = response.data
@@ -286,19 +335,17 @@ class RemovePurchaseOrderAction(ActionHandler):
                     "Supply the exact @odata.etag from get_purchase_order; wildcards are not allowed."
                 )
             try:
-                response = await context.fetch(
+                response = await request(
+                    context,
                     url,
                     method="DELETE",
                     headers={"If-Match": etag},
-                    retry_count=context.config.get("max_retries", 3),
                 )
                 status = response.status
-            except HTTPError as exc:
-                status = exc.status
-            except (ClientError, asyncio.TimeoutError) as exc:
+            except (ClientError, asyncio.TimeoutError):
                 raise BusinessCentralError(
                     "Purchase order removal outcome is unknown. Check Business Central before retrying."
-                ) from exc
+                ) from None
             if status == 412:
                 raise BusinessCentralError(
                     "Purchase order changed. Retrieve it again and review it before removing it."

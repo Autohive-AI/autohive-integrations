@@ -51,7 +51,9 @@ Collection actions accept `page_size` (1–1000, default 100) and `next_link`. T
 | `estimate_reorder_cost` | Required `item_id`, positive `quantity` in base units | Decimal-string quantity, unit cost and estimated cost, local currency, base unit, cost basis and limitations. |
 | `forecast_stock` | Required `item_id`, `start_date`, `end_date`, `forecast_days` (1–365) | Demand baseline, current/projected inventory, days of cover, source counts, dates, method and limitations. Numeric calculations return decimal strings. |
 
-Dates use `YYYY-MM-DD`, inclusive. IDs are GUIDs, not visible document/item numbers. Errors return `ActionError` with sanitized setup/retry guidance. Reads retry transient 429/502/503/504 failures at most twice; long `Retry-After` delays return an error so the workflow can retry later. SDK network retries also apply; queries are encoded once so retries preserve a single copy of each filter. Exhausted connection failures return sanitized retry guidance.
+Dates use `YYYY-MM-DD`, inclusive. IDs are GUIDs, not visible document/item numbers. Errors return `ActionError` with sanitized setup/retry guidance. Reads retry transient 429/502/503/504 failures at most twice; long `Retry-After` delays return an error so the workflow can retry later. Connection failures use the same three-attempt read limit; queries are encoded once so retries preserve a single copy of each filter. Exhausted connection failures return sanitized retry guidance.
+
+The integration uses SDK 2.1.0 or a later compatible patch for action execution. HTTP requests bypass SDK fetch logging; see [HTTP transport and safe errors](#http-transport-and-safe-errors).
 
 ## Creating purchase orders
 
@@ -69,7 +71,7 @@ Supply `lines` to create up to 100 item lines together with the header through a
 }
 ```
 
-The action returns `{record}` with the created ID, number and provider fields. Use `list_purchase_order_lines` to retrieve lines. Creation makes one request without SDK network retries. It is not idempotent: after a timeout, server error or malformed response, inspect Business Central before rerunning, since the order may already exist.
+The action returns `{record}` with the created ID, number and provider fields. Use `list_purchase_order_lines` to retrieve lines. Creation makes one request without automatic retries. It is not idempotent: after a timeout, server error or malformed response, inspect Business Central before rerunning, since the order may already exist.
 
 ## Removing purchase orders
 
@@ -135,9 +137,28 @@ Warehouse/variant stock, reservations, lead times, safety stock, order multiples
 3. `forecast_stock` with a completed historical window to get a transparent starting baseline.
 4. `estimate_reorder_cost` with a proposed base-unit quantity; compare it with recent invoice lines and supplier pricing before buying.
 
+## HTTP transport and safe errors
+
+Requests use `aiohttp` directly because SDK versions through 2.1.0 print raw API
+error bodies, which can echo personal information. The integration never reads
+non-success bodies and returns fixed status-based messages. Transport exceptions
+are replaced without their original exception chain. OAuth bearer headers are
+attached explicitly; TLS verification stays enabled and redirects are disabled.
+The SDK execution context owns and closes the shared session.
+
+GET requests make at most three attempts for connection failures or HTTP
+429/502/503/504. Numeric `Retry-After` values up to 10 seconds are respected;
+longer values return an error immediately, and missing/invalid values use bounded
+exponential backoff. POST and DELETE requests are never automatically retried.
+The integration disables aiohttp 3.x connection replay through its private
+`_retry_connection` flag, failing before sending if that control is unavailable.
+A lost write response returns guidance to check Business Central before retrying.
+
 ## Testing and validation
 
 Use Python 3.13+ with the dependencies in `requirements.txt` and root `requirements-test.txt`.
+
+The unit suite exercises the direct HTTP transport for private-data logging, short and over-limit HTTP 503 `Retry-After` headers, and encoded query retries. A loopback HTTP server also accepts a POST or DELETE and disconnects before responding: each write action must send only one request and return an uncertain outcome. These tests use synthetic data and do not contact Business Central.
 
 ```bash
 pytest microsoft-business-central/ -v
@@ -152,6 +173,8 @@ pytest microsoft-business-central/tests/test_business_central_integration.py -m 
 ```
 
 Purchase order creation changes company data. Purchase order write tests are marked `destructive` and require an explicitly supplied sandbox vendor number. Live tests skip when credentials are absent; document/forecast tests also skip when their sandbox fixtures are absent. Skipped tests do not demonstrate API compatibility. TeamCity supplies the platform OAuth token automatically; configure its sandbox variables through `tests/teamcity.env` secret markers. Validate API field availability and reconcile stock/cost results in the actual sandbox before release.
+
+TeamCity's `ah:secret` markers reference SecureString parameters in `us-east-1`; they do not create them. Provision `/integration-testing/microsoft-business-central/MICROSOFT_BUSINESS_CENTRAL_TENANT_ID` and `/integration-testing/microsoft-business-central/MICROSOFT_BUSINESS_CENTRAL_COMPANY_ID` with the dedicated sandbox UUIDs before running live CI. Missing parameters prevent the live tests from running, independently of the local transport regression results.
 
 To run the purchase order write tests in a dedicated sandbox, set `MICROSOFT_BUSINESS_CENTRAL_TEST_VENDOR_NUMBER` and explicitly select them. Also set `MICROSOFT_BUSINESS_CENTRAL_TEST_ITEM_ID` to exercise creation with an item line. Creation tests leave drafts for manual inspection and cleanup. The removal test creates and deletes its own draft; it does not delete a pre-existing order:
 

@@ -2,11 +2,9 @@
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock
 
-import aiohttp
 import pytest
-from autohive_integrations_sdk import FetchResponse, ResultType
+from autohive_integrations_sdk import ExecutionContext, ResultType
 
 from businesscentral import businesscentral
 
@@ -26,25 +24,16 @@ def live_inputs(env_credentials):
 
 
 @pytest.fixture
-def live_context(env_credentials):
+async def live_context(env_credentials):
     token = env_credentials("MICROSOFT_BUSINESS_CENTRAL_ACCESS_TOKEN")
     if not token:
         pytest.skip("MICROSOFT_BUSINESS_CENTRAL_ACCESS_TOKEN is required.")
 
-    async def real_fetch(url, *, method="GET", headers=None, params=None, json=None, retry_count=0):
-        request_headers = dict(headers or {}, Authorization=f"Bearer {token}")
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
-            async with session.request(
-                method, url, headers=request_headers, params=params, json=json, allow_redirects=False
-            ) as resp:
-                data = None if resp.status == 204 else await resp.json(content_type=None)
-                return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
-
-    context = MagicMock()
-    context.auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": token}}
-    context.fetch = AsyncMock(side_effect=real_fetch)
-    context.config = {"max_retries": 0, "timeout": 30}
-    return context
+    async with ExecutionContext(
+        auth={"auth_type": "PlatformOauth2", "credentials": {"access_token": token}},
+        request_config={"max_retries": 0, "timeout": 30},
+    ) as context:
+        yield context
 
 
 @pytest.mark.destructive
