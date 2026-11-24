@@ -2,11 +2,13 @@
 
 Business Central Online integration with 36 actions for inventory planning, client billing, receivables/payables aging and financial reporting. Uses standard REST API v2.0 and platform-managed OAuth. Supports purchase order creation and removal; no receipts, invoices, postings or payments are created.
 
+The integration icon uses the [official Microsoft Business Central visual assets](https://aka.ms/BCicon), rendered from the supplied SVG as a 512x512 PNG with transparency.
+
 ## Connection setup
 
 An Autohive administrator must configure the **Microsoft Business Central** OAuth provider before this integration can be connected. Declaring it in `config.json` does not create a provider or an Entra registration.
 
-`oauth-provider.example.json` contains the provider's **details** JSON for a provider named `Microsoft Business Central` with auth type `PlatformOauth2`. The public Entra client ID `ef1b00c7-e2bd-43bd-8432-25dd3e278c0b` is stored directly in `client_id`, following the existing auth-provider scripts. Only the client secret is resolved from the SSM SecureString `/integrations/microsoft-business-central/client-secret`; do not configure `client_id_secret_name`. The JSON file is a configuration reference, not an automatic import or deployment script. The backend provider migration is `scripts/20261123.00.add-microsoft-business-central-auth-provider.sql` in the Autohive platform repository.
+`oauth-provider.example.json` contains the provider's **details** JSON for a provider named `Microsoft Business Central` with auth type `PlatformOauth2`. The public Entra client ID `380d67e0-1123-4e55-aeee-539ca0e92f42` is stored directly in `client_id`, following the existing auth-provider scripts. Only the client secret is resolved from the SSM SecureString `/integrations/microsoft-business-central/client-secret`; do not configure `client_id_secret_name`. The JSON file is a configuration reference, not an automatic import or deployment script. The backend provider migration is `scripts/20261123.00.add-microsoft-business-central-auth-provider.sql` in the Autohive platform repository.
 
 1. Register a dedicated Microsoft Entra web application. For a shared connection experience, support organizational tenants; for a single customer, tenant-specific authorization/token endpoints can be used.
 2. Add **Dynamics 365 Business Central → Delegated permissions → Financials.ReadWrite.All**. Restrict the connected user's Business Central object/company permissions to the intended access. Creating purchase orders requires insert permissions on purchase headers and, when lines are supplied, purchase lines.
