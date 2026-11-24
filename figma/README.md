@@ -94,13 +94,13 @@ Unit tests mock SDK `FetchResponse` objects and require no credentials.
 
 The live suite covers all **17 read-only actions**, plus both write actions in a separate destructive lifecycle (19 actions total). Every response comes from the real Figma API. Identical reads are reused within one run to reduce rate-limit consumption. OAuth authentication uses `FIGMA_ACCESS_TOKEN` (preferred over the optional local PAT); TeamCity obtains it from the dedicated platform OAuth **Figma** test connection. Locally, set it in an uncommitted root `.env`. Refresh expired OAuth tokens through that connection; never commit tokens or paste them into PRs.
 
-### While the SQL/platform PR is awaiting approval
+### Local authentication and platform prerequisites
 
-Local read-only API testing can proceed without deploying the platform changes. Generate a scoped personal access token in the dedicated Figma test account's **Settings > Security > Personal access tokens** and give it the nine scopes in the action table. Store it only in your uncommitted root `.env` as `FIGMA_PERSONAL_ACCESS_TOKEN`. Do not paste it into chat, source code or PRs. The test adapter uses `X-Figma-Token` for this local fallback; the shipped integration remains platform OAuth. If `FIGMA_ACCESS_TOKEN` is also set, the adapter uses OAuth instead, so it cannot silently hide a broken OAuth token.
+Local read-only API testing can use a personal access token independently of platform OAuth. Generate a scoped personal access token in the dedicated Figma test account's **Settings > Security > Personal access tokens** and give it the eight read scopes in the action table. Add `file_comments:write` only when preparing an approved destructive run. Store it only in your uncommitted root `.env` as `FIGMA_PERSONAL_ACCESS_TOKEN`. Do not paste it into chat, source code or PRs. The test adapter uses `X-Figma-Token` for this local fallback; the shipped integration remains platform OAuth. If `FIGMA_ACCESS_TOKEN` is also set, the adapter uses OAuth instead, so it cannot silently hide a broken OAuth token.
 
-PAT tests can verify real API payloads and action behavior. They do **not** verify OAuth consent, callback routing, code exchange, platform credential storage or refresh. The unresolved callback redirect remains a separate investigation. Do not apply SQL, deploy, merge or change beta/production configuration to run these local checks. Destructive API tests still require separate approval before running, even when their fixture and opt-in are configured.
+PAT tests can verify real API payloads and action behavior. They do **not** verify OAuth consent, callback routing, code exchange, platform credential storage or refresh. Verify those platform behaviors separately against an environment containing the Figma provider/refresh changes and shared popup fixes. The merged platform changes are [Autohive#6571](https://github.com/Autohive-AI/Autohive/pull/6571) and [Autohive#6628](https://github.com/Autohive-AI/Autohive/pull/6628); merging or deploying them does not establish a successful live connection. Local checks do not require changing beta/production configuration. Destructive API tests still require separate approval before running, even when their fixture and opt-in are configured.
 
-TeamCity continues to use its platform OAuth connection; the local PAT option does not bypass its provider/secret setup. Its latest reported blockers are these fixture references, to be provisioned by the authorised owner for a dedicated test account:
+TeamCity continues to use its platform OAuth connection; the local PAT option does not bypass its provider/secret setup. It requires these fixture references, to be provisioned by the authorised owner for a dedicated test account:
 
 | Reference | Value needed (keep values out of PRs/chat) |
 |---|---|
@@ -108,7 +108,7 @@ TeamCity continues to use its platform OAuth connection; the local PAT option do
 | `/integration-testing/figma/FIGMA_TEST_NODE_ID` | Small renderable frame's colon-form node ID |
 | `/integration-testing/figma/FIGMA_TEST_TEAM_ID` | Dedicated team ID with published library fixtures |
 
-The runtime client-secret path `/integrations/figma/client-secret` is separate from these test-fixture references. Do not overwrite it with a PAT. Public OAuth availability, provider scopes and refresh still need approved platform work and a suitably configured Figma app. The script alone is not evidence that the callback redirect is fixed.
+The runtime client-secret path `/integrations/figma/client-secret` is separate from these test-fixture references. Do not overwrite it with a PAT. Public OAuth requires a Figma-approved public app, the matching client credentials, the nine enabled scopes, the exact callback URL and the deployed platform changes. Confirm that Connect completes, the connection is saved, an action succeeds and refresh retains a usable connection. A successful SQL update alone does not verify those behaviors.
 
 Provision a dedicated Figma test account with all nine scopes and these fixtures:
 
