@@ -1,4 +1,4 @@
-"""Read-only live tests for the configured environment; destructive writes require Sandbox."""
+"""Live tests for the configured demo environment, including explicitly selected writes."""
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -40,13 +40,13 @@ async def live_context(env_credentials):
 @pytest.mark.parametrize("with_lines", [False, True])
 async def test_create_purchase_order(live_context, live_inputs, env_credentials, with_lines):
     vendor = env_credentials("MICROSOFT_BUSINESS_CENTRAL_TEST_VENDOR_NUMBER")
-    if not vendor or live_inputs["environment"].lower() != "sandbox":
-        pytest.skip("Requires Sandbox and an explicitly configured test vendor; leaves a draft for manual cleanup.")
+    if not vendor:
+        pytest.skip("Requires an explicitly configured demo vendor; leaves a draft for manual cleanup.")
     inputs = dict(live_inputs, vendor_number=vendor)
     if with_lines:
         item_id = env_credentials("MICROSOFT_BUSINESS_CENTRAL_TEST_ITEM_ID")
         if not item_id:
-            pytest.skip("Line creation requires an explicitly configured sandbox test item.")
+            pytest.skip("Line creation requires an explicitly configured demo test item.")
         inputs["lines"] = [{"item_id": item_id, "quantity": 1}]
     data = await execute("create_purchase_order", inputs, live_context)
     record = data["record"]
@@ -64,8 +64,8 @@ async def test_create_purchase_order(live_context, live_inputs, env_credentials,
 @pytest.mark.destructive
 async def test_remove_purchase_order(live_context, live_inputs, env_credentials):
     vendor = env_credentials("MICROSOFT_BUSINESS_CENTRAL_TEST_VENDOR_NUMBER")
-    if not vendor or live_inputs["environment"].lower() != "sandbox":
-        pytest.skip("Requires Sandbox and an explicitly configured test vendor.")
+    if not vendor:
+        pytest.skip("Requires an explicitly configured demo test vendor.")
     created = await execute("create_purchase_order", dict(live_inputs, vendor_number=vendor), live_context)
     order_id = created["record"]["id"]
     inputs = dict(live_inputs, purchase_order_id=order_id)

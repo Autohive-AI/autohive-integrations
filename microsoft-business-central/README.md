@@ -166,17 +166,17 @@ python ../autohive-integrations-tooling/scripts/validate_integration.py microsof
 python ../autohive-integrations-tooling/scripts/check_code.py --base-ref origin/master microsoft-business-central
 ```
 
-Read-only live tests require a dedicated test company and the four `MICROSOFT_BUSINESS_CENTRAL_*` variables documented in root `.env.example`. TeamCity targets the CRONUS demo company in the environment named `Production`; that environment name does not make it a sandbox. Destructive write tests still require an environment named `Sandbox`. The access token must target Business Central. Locally, set it in uncommitted `.env`; platform OAuth handles refresh in deployed workflows. For manual tokens, acquire a fresh token when it expires.
+Read-only live tests require a dedicated test company and the four `MICROSOFT_BUSINESS_CENTRAL_*` variables documented in root `.env.example`. TeamCity targets the CRONUS demo company in the environment named `Production`; that environment name does not make it a sandbox. Explicitly selected destructive write tests use that same configured demo environment, including `Production`. The access token must target Business Central. Locally, set it in uncommitted `.env`; platform OAuth handles refresh in deployed workflows. For manual tokens, acquire a fresh token when it expires.
 
 ```bash
 pytest microsoft-business-central/tests/test_business_central_integration.py -m "integration and not destructive"
 ```
 
-Purchase order creation changes company data. Purchase order write tests are marked `destructive` and require an explicitly supplied sandbox vendor number. Live tests skip when credentials are absent; document/forecast tests also skip when their sandbox fixtures are absent. Skipped tests do not demonstrate API compatibility. TeamCity supplies the platform OAuth token automatically; configure its test tenant/company IDs through `tests/teamcity.env` secret markers. Validate API field availability and reconcile stock/cost results in the actual sandbox before release.
+Purchase order creation changes company data. Purchase order write tests are marked `destructive` and require an explicitly supplied demo vendor number. Live tests skip when credentials are absent; document/forecast tests also skip when their test fixtures are absent. Skipped tests do not demonstrate API compatibility. TeamCity supplies the platform OAuth token automatically; configure its test tenant/company IDs through `tests/teamcity.env` secret markers. Validate API field availability and reconcile stock/cost results in the configured demo environment before release.
 
 TeamCity's `ah:secret` markers reference SecureString parameters in `us-east-1`; they do not create them. Provision `/integration-testing/microsoft-business-central/MICROSOFT_BUSINESS_CENTRAL_TENANT_ID` and `/integration-testing/microsoft-business-central/MICROSOFT_BUSINESS_CENTRAL_COMPANY_ID` with the dedicated demo tenant/company UUIDs before running live CI. Missing parameters prevent the live tests from running, independently of the local transport regression results.
 
-To run the purchase order write tests in a dedicated sandbox, set `MICROSOFT_BUSINESS_CENTRAL_TEST_VENDOR_NUMBER` and explicitly select them. Also set `MICROSOFT_BUSINESS_CENTRAL_TEST_ITEM_ID` to exercise creation with an item line. Creation tests leave drafts for manual inspection and cleanup. The removal test creates and deletes its own draft; it does not delete a pre-existing order:
+To run the purchase order write tests in the dedicated demo company (including the environment named `Production`), set `MICROSOFT_BUSINESS_CENTRAL_TEST_VENDOR_NUMBER` and explicitly select them. Also set `MICROSOFT_BUSINESS_CENTRAL_TEST_ITEM_ID` to exercise creation with an item line. Creation tests leave drafts for manual inspection and cleanup. The removal test creates and deletes its own draft; it does not delete a pre-existing order:
 
 ```bash
 pytest microsoft-business-central/tests/test_business_central_integration.py -m "integration and destructive" -k "create_purchase_order or remove_purchase_order"
