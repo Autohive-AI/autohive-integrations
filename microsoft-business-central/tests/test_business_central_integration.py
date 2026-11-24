@@ -207,10 +207,17 @@ async def test_native_financial_reports(live_context, live_inputs, action):
 
 async def test_overdue_open_invoice_filter(live_context, live_inputs):
     cutoff = str(datetime.now(timezone.utc).date())
-    data = await execute(
-        "list_sales_invoices", dict(live_inputs, outstanding_only=True, due_before=cutoff, page_size=2), live_context
-    )
-    assert all(
-        row["status"] == "Open" and Decimal(str(row["remainingAmount"])) > 0 and row["dueDate"] < cutoff
-        for row in data["records"]
-    )
+    inputs = dict(live_inputs, outstanding_only=True, due_before=cutoff, page_size=2)
+    # A filtered page may be empty while a later page contains unpaid invoices.
+    # Exercise one continuation while retaining the local outstanding-only flag.
+    for _ in range(2):
+        data = await execute("list_sales_invoices", inputs, live_context)
+        assert data["count"] == len(data["records"])
+        assert all(
+            row["status"] == "Open" and Decimal(str(row["remainingAmount"])) > 0 and row["dueDate"] < cutoff
+            for row in data["records"]
+        )
+        if not data["has_more"]:
+            break
+        assert data["next_link"]
+        inputs["next_link"] = data["next_link"]

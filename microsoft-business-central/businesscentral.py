@@ -247,14 +247,24 @@ async def list_sales_invoices(context, inputs):
             if status and status != "Open":
                 raise BusinessCentralError("outstanding_only requires status Open, or no status filter.")
             status = "Open"
-            clauses.append("remainingAmount gt 0")
         if status:
             clauses.append(f"status eq {odata_string(status)}")
         if inputs.get("due_before"):
             due_before, _ = date_range(inputs["due_before"], None)
             clauses.append(f"dueDate lt {due_before.isoformat()}")
         url = f"{base_url(inputs)}/salesInvoices"
-        return ActionResult(data=await read_page(context, url, inputs, " and ".join(clauses)))
+        page = await read_page(context, url, inputs, " and ".join(clauses))
+        if inputs.get("outstanding_only"):
+            # The API exposes remainingAmount as a calculated page variable,
+            # which cannot be used in this server-side filter. Keep one provider
+            # page per call and preserve its continuation even if no rows match.
+            page["records"] = [
+                row
+                for row in page["records"]
+                if row.get("status") == "Open" and decimal_value(row.get("remainingAmount"), "remainingAmount") > 0
+            ]
+            page["count"] = len(page["records"])
+        return ActionResult(data=page)
     except BusinessCentralError as exc:
         return ActionError(message=str(exc))
 

@@ -1,6 +1,6 @@
 {
   "name": "Microsoft Dynamics 365 Business Central",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Purchasing, inventory planning, client billing, receivables/payables aging and financial reporting for Business Central Online.",
   "entry_point": "businesscentral.py",
   "auth": {
@@ -1709,11 +1709,11 @@
             "minimum": 1,
             "maximum": 1000,
             "default": 100,
-            "description": "Requested server page size; follow next_link while has_more is true."
+            "description": "Requested server page size before local outstanding-only filtering. Pages may be short or empty; follow next_link while has_more is true."
           },
           "next_link": {
             "type": "string",
-            "description": "Continuation URL from this same action and company. When supplied, its original filters apply.",
+            "description": "Continuation URL from this same action and company. Original server filters apply. Repeat outstanding_only=true on every continuation request to retain local balance filtering.",
             "maxLength": 16000
           },
           "customer_id": {
@@ -1753,7 +1753,7 @@
           "outstanding_only": {
             "type": "boolean",
             "default": false,
-            "description": "Only Open invoices with remainingAmount greater than zero; incompatible with a different status."
+            "description": "Only Open invoices with a positive remainingAmount, checked locally on each server page. Repeat true on continuation requests; incompatible with a different status."
           }
         },
         "required": [
