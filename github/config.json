@@ -1,6 +1,6 @@
 {
   "name": "GitHub",
-  "version": "2.6.2",
+  "version": "2.7.0",
   "description": "GitHub API integration for complete repository management including CRUD operations for repos, branches, issues, PRs, files, and more.",
   "display_name": "GitHub",
   "supports_connected_account": true,
@@ -3642,6 +3642,484 @@
             "type": "array"
           }
         }
+      }
+    },
+    "search_commits": {
+      "display_name": "Search Commits",
+      "description": "Find commits authored by a user across accessible repositories, filtered by date. Only indexed commits on default branches are searchable; use list_user_activity for feature-branch pushes.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "GitHub username. Omit to use the connected account.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*(\\[bot\\])?$"
+          },
+          "since": {
+            "type": "string",
+            "description": "Inclusive lower bound: ISO 8601 timestamp with timezone, or YYYY-MM-DD at 00:00 UTC. Naive timestamps use UTC.",
+            "minLength": 1
+          },
+          "until": {
+            "type": "string",
+            "description": "Inclusive upper bound: ISO 8601 timestamp with timezone, or YYYY-MM-DD covering the whole UTC day.",
+            "minLength": 1
+          },
+          "organization": {
+            "type": "string",
+            "description": "Optional organization to restrict results to.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*$"
+          },
+          "repository": {
+            "type": "string",
+            "description": "Optional full repository name: owner/repo.",
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+          },
+          "date_field": {
+            "type": "string",
+            "description": "Which commit timestamp to filter and sort by. Neither is the push timestamp.",
+            "enum": [
+              "author-date",
+              "committer-date"
+            ],
+            "default": "author-date"
+          },
+          "include_merges": {
+            "type": "boolean",
+            "description": "Whether to include merge commits.",
+            "default": true
+          },
+          "page": {
+            "type": "integer",
+            "description": "Starting page; pass next_page to continue the same query.",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 1
+          },
+          "max_pages": {
+            "type": "integer",
+            "description": "Maximum pages to fetch, 100 commits per page. GitHub allows at most 1,000 matches per query.",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string",
+            "description": "Search query sent to GitHub."
+          },
+          "commits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sha": {
+                  "type": "string"
+                },
+                "author": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "email": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                },
+                "committer": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "email": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                },
+                "message": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "repository": {
+                  "type": "string",
+                  "description": "Full repository name, owner/repo."
+                },
+                "author_login": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Linked GitHub author, if available. May differ from the pusher."
+                },
+                "committer_login": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Linked GitHub committer, if available."
+                }
+              },
+              "required": [
+                "sha",
+                "repository",
+                "message",
+                "url",
+                "author",
+                "committer",
+                "author_login",
+                "committer_login"
+              ]
+            }
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Total matching commits reported by GitHub; at most 1,000 can be retrieved."
+          },
+          "pages_fetched": {
+            "type": "integer"
+          },
+          "next_page": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Next retrievable page, or null. Narrow the query when the 1,000-result cap is reached."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "More matches exist beyond the pages returned or GitHub search cap."
+          },
+          "incomplete_results": {
+            "type": "boolean",
+            "description": "GitHub timed out before finding all matches. Retry or narrow the query."
+          },
+          "warnings": {
+            "type": "array",
+            "description": "Provider limitations and reasons the result may be partial.",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "username",
+          "query",
+          "commits",
+          "total_count",
+          "pages_fetched",
+          "next_page",
+          "truncated",
+          "incomplete_results",
+          "warnings"
+        ]
+      }
+    },
+    "list_user_activity": {
+      "display_name": "List User Activity",
+      "description": "Find recent pushes (including feature branches), PRs, reviews, and issue activity across repositories without listing every repository. Limited to 300 events / 30 days, with up to 6 hours delay. Private events require authenticating as that user. Optionally expand push commits.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "GitHub username. Omit to use the connected account.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*(\\[bot\\])?$"
+          },
+          "since": {
+            "type": "string",
+            "description": "Inclusive lower bound: ISO 8601 timestamp with timezone, or YYYY-MM-DD at 00:00 UTC. Naive timestamps use UTC.",
+            "minLength": 1
+          },
+          "until": {
+            "type": "string",
+            "description": "Inclusive upper bound: ISO 8601 timestamp with timezone, or YYYY-MM-DD covering the whole UTC day.",
+            "minLength": 1
+          },
+          "organization": {
+            "type": "string",
+            "description": "Optional organization to restrict results to.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*$"
+          },
+          "repository": {
+            "type": "string",
+            "description": "Optional full repository name: owner/repo.",
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+          },
+          "event_types": {
+            "type": "array",
+            "description": "Optional event types, e.g. PushEvent, PullRequestEvent, PullRequestReviewEvent. Filtering happens after fetching.",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "page": {
+            "type": "integer",
+            "description": "Starting page; pass next_page to continue with the same filters.",
+            "minimum": 1,
+            "maximum": 3,
+            "default": 1
+          },
+          "max_pages": {
+            "type": "integer",
+            "description": "Maximum pages to scan, 100 events per page. GitHub exposes at most 300 events from the past 30 days.",
+            "minimum": 1,
+            "maximum": 3,
+            "default": 3
+          },
+          "include_commits": {
+            "type": "boolean",
+            "description": "Expand matching pushes by comparing before/head SHAs, including feature branches. Commits may have other authors and earlier dates. Adds bounded API calls.",
+            "default": false
+          },
+          "max_pushes": {
+            "type": "integer",
+            "description": "Maximum push events to expand per call. Remaining pushes have commits_status=budget_exceeded.",
+            "minimum": 1,
+            "maximum": 20,
+            "default": 10
+          },
+          "max_commit_pages": {
+            "type": "integer",
+            "description": "Maximum comparison pages per push, 100 commits per page. Partial expansion is reported on each event.",
+            "minimum": 1,
+            "maximum": 3,
+            "default": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "repository": {
+                  "type": "string"
+                },
+                "actor": {
+                  "type": "string"
+                },
+                "public": {
+                  "type": "boolean"
+                },
+                "payload": {
+                  "type": "object",
+                  "description": "Compact event details, including push ref/before/head and issue/PR/review/comment/release summaries when present. Bodies are limited to 1,000 characters."
+                },
+                "commits": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "sha": {
+                        "type": "string"
+                      },
+                      "author": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "email": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "date": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        }
+                      },
+                      "committer": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "email": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "date": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        }
+                      },
+                      "message": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string"
+                      },
+                      "repository": {
+                        "type": "string",
+                        "description": "Full repository name, owner/repo."
+                      },
+                      "author_login": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Linked GitHub author, if available. May differ from the pusher."
+                      },
+                      "committer_login": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Linked GitHub committer, if available."
+                      }
+                    },
+                    "required": [
+                      "sha",
+                      "repository",
+                      "message",
+                      "url",
+                      "author",
+                      "committer",
+                      "author_login",
+                      "committer_login"
+                    ]
+                  }
+                },
+                "commits_status": {
+                  "type": "string",
+                  "description": "Complete means the comparison range was retrieved, not that all activity was captured.",
+                  "enum": [
+                    "not_requested",
+                    "complete",
+                    "truncated",
+                    "unavailable",
+                    "budget_exceeded"
+                  ]
+                },
+                "commits_warning": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "created_at",
+                "repository",
+                "actor",
+                "public",
+                "payload",
+                "commits",
+                "commits_status"
+              ]
+            }
+          },
+          "events_scanned": {
+            "type": "integer",
+            "description": "Number of raw events scanned before applying filters."
+          },
+          "pages_fetched": {
+            "type": "integer"
+          },
+          "oldest_scanned_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Oldest event examined; not a guarantee of complete historical coverage."
+          },
+          "next_page": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Next retrievable page, or null. Null does not guarantee complete coverage."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "A full final page was reached before scanning below since; older matches may be hidden by page or provider limits."
+          },
+          "warnings": {
+            "type": "array",
+            "description": "Provider limitations and reasons the result may be partial.",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "username",
+          "events",
+          "events_scanned",
+          "pages_fetched",
+          "oldest_scanned_at",
+          "next_page",
+          "truncated",
+          "warnings"
+        ]
       }
     }
   },

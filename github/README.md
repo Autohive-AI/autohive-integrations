@@ -323,6 +323,123 @@ Merges a pull request.
 
 ### Commit Actions
 
+#### `search_commits`
+
+Finds commits authored by a user across accessible repositories without listing each
+repository first. Uses [GitHub commit search](https://docs.github.com/en/rest/search/search#search-commits).
+
+**Inputs:**
+
+- `username` (string, optional): Commit author. Defaults to the connected account
+  (one additional request to identify the account).
+- `since`, `until` (strings, optional): Inclusive ISO 8601 bounds. Bare dates cover
+  the whole UTC day; timestamps can include a timezone offset. Naive timestamps
+  use UTC. Invalid or reversed ranges return an error before any API request.
+- `organization` (string, optional): Restrict to an organization.
+- `repository` (string, optional): Restrict to `owner/repo`.
+- `date_field` (string, optional): `author-date` (default) or `committer-date`.
+- `include_merges` (boolean, optional): Include merge commits (default: true).
+- `page` (integer, optional): Starting page, 1–10 (default: 1).
+- `max_pages` (integer, optional): Maximum pages to fetch, 1–10 (default: 1).
+  Each page contains up to 100 commits.
+
+**Outputs:** An object containing `username`, the generated `query`, `commits`,
+`total_count`, `pages_fetched`, `next_page`, `truncated`, `incomplete_results`, and
+`warnings`. Each commit contains its repository, SHA, message, URL, author and
+committer signatures, and linked GitHub logins (which can be null). Results are
+sorted newest first by `date_field`.
+
+**Limitations:** GitHub searches only indexed commits on the **default branch**;
+unmerged feature-branch commits are excluded. Commit dates are not push dates.
+Search returns at most 1,000 matches per query and has a separate rate limit
+(normally 30 authenticated requests per minute). Use `next_page` with the same
+filters to continue, or narrow the date range when the search cap is reached.
+`incomplete_results` preserves GitHub's indication that its search timed out;
+`truncated` indicates more matches beyond the returned pages or search cap.
+Neither flag being false guarantees that unindexed work has been captured.
+See [search behavior](https://docs.github.com/en/search-github/searching-on-github/searching-commits).
+
+For example, find the connected user's commits for one UTC day:
+
+```json
+{
+  "since": "2026-11-23",
+  "until": "2026-11-23",
+  "organization": "Autohive-AI"
+}
+```
+
+#### `list_user_activity`
+
+Finds recent pushes, pull requests, reviews, and issue activity across repositories
+using the [user events feed](https://docs.github.com/en/rest/activity/events#list-events-for-the-authenticated-user).
+This is the preferred starting point for daily updates that include feature-branch work.
+
+**Inputs:**
+
+- `username` (string, optional): Defaults to the connected account.
+- `since`, `until`, `organization`, `repository`: Same date and repository filters
+  as `search_commits`, applied to event timestamps after fetching the feed.
+- `event_types` (array of strings, optional): For example, `["PushEvent"]` or
+  `["PullRequestEvent", "PullRequestReviewEvent"]`. Omit or pass an empty array
+  for all event types.
+- `page` (integer, optional): Starting page, 1–3 (default: 1).
+- `max_pages` (integer, optional): Pages to scan, 1–3 (default: 3), at most 100
+  events per page. Scanning stops when the feed ends or passes below `since`.
+- `include_commits` (boolean, optional): Expand matching push events into compact
+  commit summaries (default: false).
+- `max_pushes` (integer, optional): Push expansion budget, 1–20 (default: 10).
+- `max_commit_pages` (integer, optional): Comparison pages per push, 1–3
+  (default: 1), at most 100 commits per page.
+
+**Outputs:** An object containing `username`, `events`, `events_scanned`,
+`pages_fetched`, `oldest_scanned_at`, `next_page`, `truncated`, and `warnings`.
+Each event includes its ID, type, timestamp, repository, actor, visibility, and
+compact `payload`. PR, issue, review, comment, and release summaries retain useful
+titles/links/state when available; body excerpts are limited to 1,000 characters.
+Push details retain the branch ref and before/head SHAs. Expanded commits use
+the same summary shape as `search_commits`.
+
+Commit expansion compares only each push's before/head range; it does not scan
+repositories or substitute the current branch history. `commits_status` is
+`not_requested`, `complete`, `truncated`, `unavailable`, or `budget_exceeded`.
+`commits_warning`, when present, explains partial expansion. Missing/deleted Git
+objects, new branches without a comparable base, and diverged force-push history
+are reported explicitly. Failure to expand one push preserves the other activity.
+With expansion enabled, the maximum request count is the feed page budget plus
+`max_pushes × max_commit_pages`, plus one account lookup if `username` is omitted.
+
+**Limitations:** GitHub exposes only the latest **300 events within 30 days**,
+and events may be delayed by up to six hours. These limits apply before any
+date, organization, repository, or event-type filter, so older matching activity
+can be inaccessible. Private events require authenticating as the requested user
+with appropriate access. `truncated` flags a full final page before the requested
+lower bound was crossed; `next_page` permits continuation only within the feed's
+three pages. A null `next_page`, false `truncated`, or empty events array does not
+prove complete activity coverage. `oldest_scanned_at` is informational.
+
+The event actor is the **pusher**, who may push commits authored by other people
+or on earlier days. An agent should retain that distinction when writing an update.
+The same commit may appear in several pushes; use repository plus SHA to deduplicate
+when summarizing commits. `complete` applies only to a push's comparison range.
+See [push payloads](https://docs.github.com/en/rest/using-the-rest-api/github-event-types#pushevent)
+and [commit comparisons](https://docs.github.com/en/rest/commits/commits#compare-two-commits).
+
+For a daily update in New Zealand daylight time, including feature-branch commits:
+
+```json
+{
+  "since": "2026-11-23T00:00:00+13:00",
+  "until": "2026-11-23T23:59:59+13:00",
+  "include_commits": true
+}
+```
+
+Use event titles and commit messages for the initial update. Fetch individual
+commit details with `get_commit` only when a diff is needed. Both new actions use
+the existing OAuth connection and request no additional scopes; access still
+depends on the account and organization authorizations.
+
 #### `get_commit`
 
 Retrieves details of a specific commit.

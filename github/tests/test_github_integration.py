@@ -59,6 +59,38 @@ def live_context(env_credentials):
 
 
 class TestGitHubReadOnlyActions:
+    async def test_search_commits_across_repositories(self, live_context):
+        result = await github.execute_action(
+            "search_commits", {"username": PUBLIC_OWNER, "repository": f"{PUBLIC_OWNER}/{PUBLIC_REPO}"}, live_context
+        )
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert isinstance(data["commits"], list)
+        assert isinstance(data["total_count"], int)
+        assert isinstance(data["incomplete_results"], bool)
+        assert data["pages_fetched"] == 1
+        for commit in data["commits"]:
+            assert commit["repository"].lower() == f"{PUBLIC_OWNER}/{PUBLIC_REPO}".lower()
+            assert commit["sha"]
+            assert commit["url"].startswith("https://github.com/")
+
+    async def test_connected_user_activity_with_bounded_expansion(self, live_context):
+        result = await github.execute_action(
+            "list_user_activity", {"max_pages": 1, "include_commits": True, "max_pushes": 1}, live_context
+        )
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert data["username"]
+        assert isinstance(data["events"], list)
+        assert data["events_scanned"] <= 100
+        assert data["warnings"]
+        for event in data["events"]:
+            assert event["repository"]
+            assert event["created_at"]
+            if event["commits_status"] == "complete":
+                assert event["type"] == "PushEvent"
+                assert isinstance(event["commits"], list)
+
     async def test_get_repository_returns_public_repo(self, live_context):
         result = await github.execute_action(
             "get_repository", {"owner": PUBLIC_OWNER, "repo": PUBLIC_REPO}, live_context
