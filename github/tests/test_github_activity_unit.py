@@ -27,8 +27,8 @@ PUSH = {
 }
 
 
-def response(data, status=200):
-    return FetchResponse(status=status, headers={}, data=data)
+def response(data, status=200, headers=None):
+    return FetchResponse(status=status, headers=headers or {}, data=data)
 
 
 def search_page(items, total=None, incomplete=False):
@@ -76,13 +76,45 @@ class TestSearchCommits:
         assert call.args[0] == "https://api.github.com/search/commits"
         assert call.kwargs["method"] == "GET"
         assert call.kwargs["params"] == {
-            "q": "author:octocat org:example repo:example/project committer-date:>=2026-11-22T11:00:00Z "
-            "committer-date:<=2026-11-23T23:59:59Z merge:false",
+            "q": "author:octocat org:example repo:example/project "
+            "committer-date:2026-11-22T11:00:00Z..2026-11-23T23:59:59Z merge:false",
             "sort": "committer-date",
             "order": "desc",
             "per_page": 100,
             "page": 1,
         }
+
+    @pytest.mark.parametrize("date_field", ["author-date", "committer-date"])
+    @pytest.mark.parametrize(
+        "bounds,expected",
+        [
+            ({"since": "2026-11-23T12:00:00.500Z"}, ">=2026-11-23T12:00:01Z"),
+            ({"until": "2026-11-23T12:00:00.500Z"}, "<=2026-11-23T12:00:00Z"),
+            (
+                {"since": "2026-11-23T12:00:00.500Z", "until": "2026-11-23T12:00:01.500Z"},
+                "2026-11-23T12:00:01Z..2026-11-23T12:00:01Z",
+            ),
+            ({"since": "2026-11-23T23:59:59.999Z"}, ">=2026-11-24T00:00:00Z"),
+        ],
+    )
+    async def test_second_precision_bounds(self, mock_context, date_field, bounds, expected):
+        mock_context.fetch.return_value = search_page([])
+        result = await github.execute_action(
+            "search_commits", {"username": "octocat", "date_field": date_field, **bounds}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.call_args.kwargs["params"]["q"] == f"author:octocat {date_field}:{expected}"
+
+    async def test_subsecond_interval_without_indexed_seconds(self, mock_context):
+        result = await github.execute_action(
+            "search_commits",
+            {"username": "octocat", "since": "2026-11-23T12:00:00.100Z", "until": "2026-11-23T12:00:00.900Z"},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION
+        assert result.result.data["commits"] == []
+        assert result.result.data["pages_fetched"] == 0
+        mock_context.fetch.assert_not_awaited()
 
     async def test_pagination_and_incomplete_results_accumulate(self, mock_context):
         mock_context.fetch.side_effect = [search_page([COMMIT] * 100, 101, True), search_page([COMMIT], 101)]
@@ -172,15 +204,33 @@ class TestListUserActivity:
         assert result.result.data["events_scanned"] == 300
         assert mock_context.fetch.await_count == 3
 
-    async def test_stops_after_scanning_below_since(self, mock_context):
+    @pytest.mark.parametrize("header_name", ["link", "Link"])
+    @pytest.mark.parametrize("max_pages", [1, 2])
+    async def test_short_page_honors_provider_continuation(self, mock_context, header_name, max_pages):
+        mock_context.fetch.side_effect = [
+            response(
+                [PUSH] * 99, headers={header_name: '<https://api.github.com/users/octocat/events?page=2>; rel="next"'}
+            ),
+            response([PUSH]),
+        ]
+        result = await github.execute_action(
+            "list_user_activity", {"username": "octocat", "max_pages": max_pages}, mock_context
+        )
+        data = result.result.data
+        assert data["events_scanned"] == (99 if max_pages == 1 else 100)
+        assert data["next_page"] == (2 if max_pages == 1 else None)
+        assert data["truncated"] == (max_pages == 1)
+        assert mock_context.fetch.await_count == max_pages
+
+    async def test_scans_later_pages_after_older_events(self, mock_context):
         old = {**PUSH, "created_at": "2026-11-22T23:59:59Z"}
-        mock_context.fetch.return_value = response([PUSH] * 99 + [old])
+        mock_context.fetch.side_effect = [response([PUSH] * 99 + [old]), response([PUSH])]
         result = await github.execute_action(
             "list_user_activity", {"username": "octocat", "since": "2026-11-23"}, mock_context
         )
-        assert len(result.result.data["events"]) == 99
+        assert len(result.result.data["events"]) == 100
         assert not result.result.data["truncated"]
-        assert mock_context.fetch.await_count == 1
+        assert mock_context.fetch.await_count == 2
 
     async def test_expands_feature_branch_push_and_preserves_author_identity(self, mock_context):
         commit = {**COMMIT, "author": {"login": "someone-else"}}

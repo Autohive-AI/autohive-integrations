@@ -24,10 +24,11 @@ from autohive_integrations_sdk import (
 from typing import Dict, Any, List, Callable, Optional, TypeVar
 from urllib.parse import quote
 from functools import wraps
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import asyncio
 import base64
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -1309,7 +1310,7 @@ def _activity_date_range(since: Optional[str], until: Optional[str]) -> tuple[Op
     return bounds[0], bounds[1]
 
 
-async def _github_read(context: ExecutionContext, path: str, params: Dict[str, Any] = None):
+async def _github_read(context: ExecutionContext, path: str, params: Dict[str, Any] = None, *, with_headers=False):
     """Read a GitHub response, including contexts that return non-2xx responses."""
     fetch_result = await context.fetch(
         f"{GitHubAPI.BASE_URL}{path}", method="GET", params=params, headers=GitHubAPI.get_headers(context)
@@ -1321,7 +1322,7 @@ async def _github_read(context: ExecutionContext, path: str, params: Dict[str, A
             else "Request failed"
         )
         raise ValueError(f"GitHub HTTP {fetch_result.status}: {message}")
-    return fetch_result.data
+    return (fetch_result.data, fetch_result.headers) if with_headers else fetch_result.data
 
 
 async def _activity_username(inputs: Dict[str, Any], context: ExecutionContext) -> str:
@@ -1354,10 +1355,22 @@ class SearchCommits(ActionHandler):
             qualifiers.append(f"org:{inputs['organization']}")
         if inputs.get("repository"):
             qualifiers.append(f"repo:{inputs['repository']}")
-        for bound, operator in ((since, ">="), (until, "<=")):
-            if bound:
-                timestamp = bound.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-                qualifiers.append(f"{date_field}:{operator}{timestamp}")
+        # Search indexes whole seconds. Keep the inclusive interval within the
+        # requested bounds, including when the lower bound has a fractional part.
+        if since and since.microsecond:
+            since = since.replace(microsecond=0) + timedelta(seconds=1)
+        if until:
+            until = until.replace(microsecond=0)
+        timestamps = [
+            bound.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z") if bound else None
+            for bound in (since, until)
+        ]
+        if since and until:
+            qualifiers.append(f"{date_field}:{timestamps[0]}..{timestamps[1]}")
+        elif since:
+            qualifiers.append(f"{date_field}:>={timestamps[0]}")
+        elif until:
+            qualifiers.append(f"{date_field}:<={timestamps[1]}")
         if not inputs.get("include_merges", True):
             qualifiers.append("merge:false")
         query = " ".join(qualifiers)
@@ -1368,6 +1381,8 @@ class SearchCommits(ActionHandler):
         pages_fetched = 0
         start_page = inputs.get("page", 1)
         for page in range(start_page, min(start_page + inputs.get("max_pages", 1), 11)):
+            if since and until and since > until:
+                break  # No indexed second falls within this subsecond interval.
             response = await _github_read(
                 context,
                 "/search/commits",
@@ -1482,24 +1497,23 @@ class ListUserActivity(ActionHandler):
         events = []
         scanned = 0
         oldest = None
-        reached_since = False
         next_page = None
-        full_page = False
+        has_more = False
         pages_fetched = 0
         start_page = inputs.get("page", 1)
         for page in range(start_page, min(start_page + inputs.get("max_pages", 3), 4)):
-            batch = await _github_read(
-                context, f"/users/{quote(username, safe='')}/events", {"per_page": 100, "page": page}
+            batch, headers = await _github_read(
+                context, f"/users/{quote(username, safe='')}/events", {"per_page": 100, "page": page}, with_headers=True
             )
             pages_fetched += 1
             scanned += len(batch)
-            full_page = len(batch) == 100
+            link = next((value for key, value in headers.items() if key.lower() == "link"), "")
+            has_more = bool(re.search(r';\s*rel="next"', link)) if link else len(batch) == 100
             for event in batch:
                 created = _parse_iso_utc(event["created_at"])
                 if created is None:
                     raise ValueError("GitHub returned an invalid event timestamp")
                 oldest = min(oldest, created) if oldest else created
-                reached_since = reached_since or bool(since and created < since)
                 if (since and created < since) or (until and created > until):
                     continue
                 repository = event["repo"]["name"]
@@ -1510,12 +1524,12 @@ class ListUserActivity(ActionHandler):
                 if inputs.get("event_types") and event["type"] not in inputs["event_types"]:
                     continue
                 events.append(_activity_summary(event))
-            next_page = page + 1 if full_page and not reached_since and page < 3 else None
-            if not full_page or reached_since:
+            next_page = page + 1 if has_more and page < 3 else None
+            if not has_more:
                 break
-        truncated = full_page and not reached_since
+        truncated = has_more or (page == 3 and len(batch) == 100)
         warnings = [
-            "GitHub exposes at most 300 events from the past 30 days, with delays of up to 6 hours. "
+            "GitHub exposes at most 300 events from the past 30 days, with delays of up to 6 hours.",
             "Empty results do not prove no activity.",
             "Private events are available only for the authenticated user with appropriate access.",
         ]

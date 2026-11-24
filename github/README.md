@@ -335,6 +335,8 @@ repository first. Uses [GitHub commit search](https://docs.github.com/en/rest/se
 - `since`, `until` (strings, optional): Inclusive ISO 8601 bounds. Bare dates cover
   the whole UTC day; timestamps can include a timezone offset. Naive timestamps
   use UTC. Invalid or reversed ranges return an error before any API request.
+  Commit search uses whole seconds: fractional lower bounds round up and upper
+  bounds round down. Intervals containing no whole second return no matches.
 - `organization` (string, optional): Restrict to an organization.
 - `repository` (string, optional): Restrict to `owner/repo`.
 - `date_field` (string, optional): `author-date` (default) or `committer-date`.
@@ -385,7 +387,9 @@ This is the preferred starting point for daily updates that include feature-bran
   for all event types.
 - `page` (integer, optional): Starting page, 1–3 (default: 1).
 - `max_pages` (integer, optional): Pages to scan, 1–3 (default: 3), at most 100
-  events per page. Scanning stops when the feed ends or passes below `since`.
+  events per page. Scanning follows provider continuation links within the page
+  budget. Dates filter individual events; older events do not end the scan
+  because the feed is not strictly ordered by event timestamp.
 - `include_commits` (boolean, optional): Expand matching push events into compact
   commit summaries (default: false).
 - `max_pushes` (integer, optional): Push expansion budget, 1–20 (default: 10).
@@ -413,8 +417,8 @@ With expansion enabled, the maximum request count is the feed page budget plus
 and events may be delayed by up to six hours. These limits apply before any
 date, organization, repository, or event-type filter, so older matching activity
 can be inaccessible. Private events require authenticating as the requested user
-with appropriate access. `truncated` flags a full final page before the requested
-lower bound was crossed; `next_page` permits continuation only within the feed's
+with appropriate access. `truncated` flags an unconsumed continuation or a full
+page at the provider's cap; `next_page` permits continuation only within the feed's
 three pages. A null `next_page`, false `truncated`, or empty events array does not
 prove complete activity coverage. `oldest_scanned_at` is informational.
 

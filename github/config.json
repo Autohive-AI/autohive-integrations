@@ -4100,7 +4100,7 @@
           },
           "truncated": {
             "type": "boolean",
-            "description": "A full final page was reached before scanning below since; older matches may be hidden by page or provider limits."
+            "description": "More provider pages remain or a full page reached the 300-event cap; matching activity may be hidden by page or provider limits."
           },
           "warnings": {
             "type": "array",
