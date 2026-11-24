@@ -12,15 +12,33 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
-def live_inputs(env_credentials):
+async def live_inputs(env_credentials, live_context):
     values = {
         "tenant_id": env_credentials("MICROSOFT_BUSINESS_CENTRAL_TENANT_ID"),
         "environment": env_credentials("MICROSOFT_BUSINESS_CENTRAL_ENVIRONMENT"),
-        "company_id": env_credentials("MICROSOFT_BUSINESS_CENTRAL_COMPANY_ID"),
     }
     if not all(values.values()):
-        pytest.skip("Business Central test tenant, environment and company variables are required.")
-    return values
+        pytest.skip("Business Central test tenant and environment variables are required.")
+    company_name = env_credentials("MICROSOFT_BUSINESS_CENTRAL_COMPANY_NAME") or "CRONUS NZ"
+    inputs = dict(values, page_size=100)
+    matches, seen_links = [], set()
+    # Check every company page before choosing; a later page may contain an
+    # ambiguous match. Never default to the first company for write tests.
+    for _ in range(100):
+        page = await execute("list_companies", inputs, live_context)
+        matches.extend(row for row in page["records"] if row.get("name") == company_name)
+        link = page.get("next_link")
+        if not link:
+            break
+        if link in seen_links:
+            pytest.fail("Company discovery returned a repeated continuation link.")
+        seen_links.add(link)
+        inputs["next_link"] = link
+    else:
+        pytest.fail("Company discovery exceeded 100 pages; no company was selected.")
+    if len(matches) != 1 or not matches[0].get("id"):
+        pytest.fail(f"Expected exactly one company named {company_name!r} with an ID; found {len(matches)} matches.")
+    return dict(values, company_id=matches[0]["id"])
 
 
 @pytest.fixture
