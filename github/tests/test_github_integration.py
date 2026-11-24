@@ -58,10 +58,34 @@ def live_context(env_credentials):
     return ctx
 
 
+@pytest.fixture
+def activity_fixture(live_context, env_credentials):
+    """Require controlled data once credentials are configured; see README setup."""
+    variables = {
+        "username": "GITHUB_TEST_ACTIVITY_USERNAME",
+        "repo_a": "GITHUB_TEST_SEARCH_REPO_A",
+        "sha_a": "GITHUB_TEST_SEARCH_SHA_A",
+        "repo_b": "GITHUB_TEST_SEARCH_REPO_B",
+        "sha_b": "GITHUB_TEST_SEARCH_SHA_B",
+        "push_repository": "GITHUB_TEST_PUSH_REPOSITORY",
+        "push_event_id": "GITHUB_TEST_PUSH_EVENT_ID",
+        "push_ref": "GITHUB_TEST_PUSH_REF",
+        "push_before": "GITHUB_TEST_PUSH_BEFORE",
+        "push_head": "GITHUB_TEST_PUSH_HEAD",
+    }
+    values = {key: env_credentials(name) for key, name in variables.items()}
+    missing = [name for key, name in variables.items() if not values[key]]
+    assert not missing, f"Configure controlled GitHub activity fixtures (see github/README.md): {', '.join(missing)}"
+    assert values["repo_a"].lower() != values["repo_b"].lower(), "Search fixtures must use two distinct repositories"
+    assert values["push_before"] != values["push_head"], "Push fixture must add a commit"
+    return values
+
+
 class TestGitHubReadOnlyActions:
-    async def test_search_commits_across_repositories(self, live_context):
+    async def test_search_commits_across_repositories(self, live_context, activity_fixture):
+        fixture = activity_fixture
         result = await github.execute_action(
-            "search_commits", {"username": PUBLIC_OWNER, "repository": f"{PUBLIC_OWNER}/{PUBLIC_REPO}"}, live_context
+            "search_commits", {"username": fixture["username"], "max_pages": 1}, live_context
         )
         assert result.type == ResultType.ACTION
         data = result.result.data
@@ -69,27 +93,50 @@ class TestGitHubReadOnlyActions:
         assert isinstance(data["total_count"], int)
         assert isinstance(data["incomplete_results"], bool)
         assert data["pages_fetched"] == 1
+        assert data["total_count"] >= 2
+        assert not data["incomplete_results"], "GitHub search was incomplete; retry the fixture test"
+        expected = {
+            (fixture["repo_a"].lower(), fixture["sha_a"]),
+            (fixture["repo_b"].lower(), fixture["sha_b"]),
+        }
+        found = {(commit["repository"].lower(), commit["sha"]) for commit in data["commits"]}
+        assert expected <= found, f"Known cross-repository commits missing: {expected - found}"
         for commit in data["commits"]:
-            assert commit["repository"].lower() == f"{PUBLIC_OWNER}/{PUBLIC_REPO}".lower()
+            assert commit["author_login"].lower() == fixture["username"].lower()
             assert commit["sha"]
             assert commit["url"].startswith("https://github.com/")
 
-    async def test_connected_user_activity_with_bounded_expansion(self, live_context):
+    async def test_connected_user_activity_with_bounded_expansion(self, live_context, activity_fixture):
+        fixture = activity_fixture
         result = await github.execute_action(
-            "list_user_activity", {"max_pages": 1, "include_commits": True, "max_pushes": 1}, live_context
+            "list_user_activity",
+            {
+                "repository": fixture["push_repository"],
+                "event_types": ["PushEvent"],
+                "max_pages": 3,
+                "include_commits": True,
+                "max_pushes": 1,
+                "max_commit_pages": 1,
+            },
+            live_context,
         )
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["username"]
+        assert data["username"].lower() == fixture["username"].lower()
         assert isinstance(data["events"], list)
-        assert data["events_scanned"] <= 100
+        assert data["events_scanned"] <= 300
         assert data["warnings"]
-        for event in data["events"]:
-            assert event["repository"]
-            assert event["created_at"]
-            if event["commits_status"] == "complete":
-                assert event["type"] == "PushEvent"
-                assert isinstance(event["commits"], list)
+        matches = [event for event in data["events"] if event["id"] == fixture["push_event_id"]]
+        assert len(matches) == 1, "Controlled push missing; refresh the fixture after the event becomes visible"
+        event = matches[0]
+        assert event["type"] == "PushEvent"
+        assert event["repository"].lower() == fixture["push_repository"].lower()
+        assert event["actor"].lower() == fixture["username"].lower()
+        assert event["payload"]["ref"] == fixture["push_ref"]
+        assert event["payload"]["before"] == fixture["push_before"]
+        assert event["payload"]["head"] == fixture["push_head"]
+        assert event["commits_status"] == "complete", event.get("commits_warning", event["commits_status"])
+        assert [commit["sha"] for commit in event["commits"]] == [fixture["push_head"]]
 
     async def test_get_repository_returns_public_repo(self, live_context):
         result = await github.execute_action(

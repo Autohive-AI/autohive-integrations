@@ -923,6 +923,51 @@ Common error scenarios:
 **Issue: Rate limit exceeded**
 - Solution: Use `get_rate_limit` to check status, wait for reset, or optimize requests
 
+## Live test fixtures
+
+Run the read-only suite from the repository root:
+
+```bash
+pytest github/tests/test_github_integration.py -m "integration and not destructive"
+```
+
+Set `GITHUB_ACCESS_TOKEN` and the `GITHUB_TEST_*` variables listed in the root
+`.env.example`. Without a token the suite skips; with a token the two activity
+tests require all fixture settings and fail if expected data is missing.
+The tests only read existing data; prepare fixtures separately:
+
+1. Use a dedicated, low-activity GitHub account and a token belonging to that
+   account. In two distinct public repositories, retain a known commit authored
+   by that account (using an email linked to the account) on each default branch.
+   Set `GITHUB_TEST_ACTIVITY_USERNAME`, `GITHUB_TEST_SEARCH_REPO_A/B` to full
+   `owner/repo` names, and `GITHUB_TEST_SEARCH_SHA_A/B` to the corresponding full
+   commit SHAs. Wait until both commits are indexed. Keep both among the account's
+   newest 100 commits by committer date so one unscoped search page contains them.
+2. In a fixture repository, create a feature branch with an existing base commit
+   `B`. Using the dedicated account, push exactly one child commit `H` to that
+   existing branch with a normal fast-forward push. Do not use a branch-creation
+   push or force-push. Preserve both commits and the branch.
+3. Once the push appears in the account's events feed, record its ID in
+   `GITHUB_TEST_PUSH_EVENT_ID`, the full repository name in
+   `GITHUB_TEST_PUSH_REPOSITORY`, the full ref (such as `refs/heads/live-fixture`)
+   in `GITHUB_TEST_PUSH_REF`, and full SHAs `B` and `H` in
+   `GITHUB_TEST_PUSH_BEFORE` and `GITHUB_TEST_PUSH_HEAD`. This must be the newest
+   push in that repository for this account: the test allows only one expansion.
+
+Search must return both known repository/SHA pairs. Activity must return the
+recorded event and expand precisely `B...H` into the single commit `H` with
+`commits_status == "complete"`; empty results and unavailable comparisons fail.
+The connected-user activity call deliberately omits `username`, exercising token
+identity resolution as well as expansion.
+
+Refresh the push and its metadata before it expires, and whenever a newer push
+in that repository supersedes it. GitHub retains at most 300 events from the past
+30 days, and event publication can take up to six hours. Keep the fixture account
+quiet enough that the event stays within that window. Wait for visibility before
+running tests rather than creating a push during the read-only suite. See
+[GitHub events limits](https://docs.github.com/en/rest/activity/events) and
+[commit search behavior](https://docs.github.com/en/search-github/searching-on-github/searching-commits).
+
 ## Support
 
 For integration issues or questions:
