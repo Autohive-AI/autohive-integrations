@@ -1,4 +1,4 @@
-"""Sandbox tests, including explicitly selected destructive writes."""
+"""Read-only live tests for the configured environment; destructive writes require Sandbox."""
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -19,7 +19,7 @@ def live_inputs(env_credentials):
         "company_id": env_credentials("MICROSOFT_BUSINESS_CENTRAL_COMPANY_ID"),
     }
     if not all(values.values()):
-        pytest.skip("Business Central sandbox tenant, environment and company variables are required.")
+        pytest.skip("Business Central test tenant, environment and company variables are required.")
     return values
 
 
@@ -79,7 +79,7 @@ async def test_remove_purchase_order(live_context, live_inputs, env_credentials)
 
 async def execute(action, inputs, context):
     result = await businesscentral.execute_action(action, inputs, context)
-    assert result.type == ResultType.ACTION, f"{action} failed; check sandbox access and inputs."
+    assert result.type == ResultType.ACTION, f"{action} failed; check test environment access and inputs."
     return result.result.data
 
 
@@ -138,7 +138,7 @@ async def test_read_collection(live_context, live_inputs, action):
 async def test_document_round_trip(live_context, live_inputs, action, parent, id_key):
     parents = await execute(parent, dict(live_inputs, page_size=1), live_context)
     if not parents["records"]:
-        pytest.skip(f"Sandbox needs a record for {parent}.")
+        pytest.skip(f"Test company needs a record for {parent}.")
     record_id = parents["records"][0]["id"]
     data = await execute(action, dict(live_inputs, **{id_key: record_id}), live_context)
     if action == "get_receivables_aging":
@@ -162,7 +162,7 @@ async def test_inventory_planning(live_context, live_inputs, action):
     items = await execute("list_items", dict(live_inputs, page_size=100), live_context)
     item = next((row for row in items["records"] if row.get("type") == "Inventory"), None)
     if not item:
-        pytest.skip("Sandbox needs an Inventory item in the first item page.")
+        pytest.skip("Test company needs an Inventory item in the first item page.")
     inputs = dict(live_inputs, item_id=item["id"])
     if action == "forecast_stock":
         today = datetime.now(timezone.utc).date()
