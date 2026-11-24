@@ -1641,3 +1641,61 @@ async def test_update_meeting_activity(live_context):
         assert result.result.data["meeting"]["properties"]["hs_meeting_title"] == "Autohive test updated"
     finally:
         await live_context.fetch(f"{url}/{meeting_id}", method="DELETE")
+
+
+@pytest.mark.skipif(
+    os.environ.get("HUBSPOT_RUN_LEAD_TESTS") != "1",
+    reason="Set HUBSPOT_RUN_LEAD_TESTS=1 only for a dedicated Lead-enabled test account",
+)
+class TestLeadCleanup:
+    async def test_reads_leads(self, live_context):
+        result = await hubspot.execute_action("list_leads", {"limit": 1}, live_context)
+        assert result.type == ResultType.ACTION, result.result
+        assert isinstance(result.result.data["leads"], list)
+
+    @pytest.mark.destructive
+    @pytest.mark.parametrize("delete_action", ["delete_lead", "batch_delete_leads"])
+    async def test_creates_reads_updates_and_deletes_test_leads(self, live_context, delete_action):
+        base_url = "https://api.hubapi.com/crm/objects/2026-09"
+        contact = await live_context.fetch(
+            f"{base_url}/contacts",
+            method="POST",
+            json={"properties": {"firstname": "Autohive", "lastname": "Lead cleanup test"}},
+        )
+        contact_id = contact.data["id"]
+        lead_ids = []
+        try:
+            for index in range(2 if delete_action == "batch_delete_leads" else 1):
+                created = await hubspot.execute_action(
+                    "create_lead",
+                    {"name": f"Autohive cleanup test {index}", "contact_id": contact_id},
+                    live_context,
+                )
+                assert created.type == ResultType.ACTION, created.result
+                lead_id = created.result.data["lead"]["id"]
+                lead_ids.append(lead_id)
+                updated = await hubspot.execute_action(
+                    "update_lead",
+                    {"lead_id": lead_id, "properties": {"hs_lead_name": f"Autohive cleanup updated {index}"}},
+                    live_context,
+                )
+                assert updated.type == ResultType.ACTION, updated.result
+                read = await hubspot.execute_action(
+                    "get_lead", {"lead_id": lead_id, "properties": ["hs_lead_name"]}, live_context
+                )
+                assert read.type == ResultType.ACTION, read.result
+                assert read.result.data["lead"]["properties"]["hs_lead_name"] == f"Autohive cleanup updated {index}"
+            inputs = {"lead_ids": lead_ids} if delete_action == "batch_delete_leads" else {"lead_id": lead_ids[0]}
+            deleted = await hubspot.execute_action(delete_action, inputs, live_context)
+            assert deleted.type == ResultType.ACTION, deleted.result
+            assert deleted.result.data["archived"] is True
+            for lead_id in lead_ids:
+                read = await hubspot.execute_action("get_lead", {"lead_id": lead_id, "archived": True}, live_context)
+                assert read.type == ResultType.ACTION, read.result
+                assert read.result.data["lead"]["archived"] is True
+        finally:
+            try:
+                for lead_id in lead_ids:
+                    await live_context.fetch(f"{base_url}/leads/{lead_id}", method="DELETE")
+            finally:
+                await live_context.fetch(f"{base_url}/contacts/{contact_id}", method="DELETE")

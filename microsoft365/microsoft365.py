@@ -24,6 +24,15 @@ GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
 GRAPH_SITE_PROVISIONING_URL = "https://graph.microsoft.com/beta/sites"
 MAX_SIMPLE_UPLOAD_BYTES = 250 * 1024 * 1024
 MAX_DRAFT_ATTACHMENT_BYTES = 3_000_000
+# The platform runs the action in AWS Lambda, which limits a response to 6 MB. Base64 makes a file a third
+# larger, so a file of this size still fits in the response with the rest of the result.
+MAX_INLINE_FILE_BYTES = 4_000_000
+# Graph returns a driveItem's pre-authenticated download URL in this property.
+# https://learn.microsoft.com/en-us/graph/api/resources/driveitem#instance-attributes
+GRAPH_DOWNLOAD_URL_PROPERTY = "@microsoft.graph.downloadUrl"
+# The name that asks for that property in $select. Graph leaves the property out when $select names
+# "@microsoft.graph.downloadUrl" itself (seen on SharePoint, 2026-11-19).
+GRAPH_DOWNLOAD_URL_SELECT = "content.downloadUrl"
 DEFAULT_CONTACT_SEARCH_SCAN_LIMIT = 1000
 MAX_CONTACT_SEARCH_SCAN_LIMIT = 10000
 CONTACT_SEARCH_PAGE_SIZE = 100
@@ -377,11 +386,15 @@ async def _download_drive_item(
     context: ExecutionContext,
     metadata_url: str,
     content_url: str,
-) -> tuple[Dict[str, str], Dict[str, Any]]:
-    """Read Graph driveItem metadata and return the original file or a documented PDF conversion."""
+) -> tuple[Dict[str, str] | None, Dict[str, Any]]:
+    """Read Graph driveItem metadata and return the original file or a documented PDF conversion.
+
+    The metadata always carries Graph's pre-authenticated download URL for the original file. The file
+    itself is left out (None) when it is too large to return in the action result.
+    """
     resp = await context.fetch(
         metadata_url,
-        params={"$select": "id,name,size,file,webUrl"},
+        params={"$select": f"id,name,size,file,webUrl,{GRAPH_DOWNLOAD_URL_SELECT}"},
     )
     metadata = resp.data
     _check_response(metadata, "id", "name", "size", "file")
@@ -391,31 +404,61 @@ async def _download_drive_item(
         raise ValueError("Microsoft Graph returned a drive item without a filename")
 
     original_mime_type = _drive_item_mime_type(metadata) or "application/octet-stream"
+    original_download_url = metadata.get(GRAPH_DOWNLOAD_URL_PROPERTY)
+    if not isinstance(original_download_url, str):
+        original_download_url = ""
+    item_metadata = {
+        "id": metadata["id"],
+        "name": name,
+        "size": metadata["size"],
+        "mimeType": original_mime_type,
+        "webUrl": metadata.get("webUrl", ""),
+        "downloadUrl": original_download_url,
+        "convertedToPdf": False,
+    }
+
+    def too_large(size: int) -> tuple[None, Dict[str, Any]]:
+        if not original_download_url:
+            raise ValueError(
+                f"The file is {size} bytes, more than the {MAX_INLINE_FILE_BYTES} bytes an action can return, "
+                "and Microsoft Graph returned no download URL for it"
+            )
+        return None, item_metadata
+
+    size = metadata["size"]
+    if isinstance(size, int) and size > MAX_INLINE_FILE_BYTES:
+        return too_large(size)
+
     extension = _drive_item_extension(name)
     converted_to_pdf = extension in PDF_CONVERTIBLE_EXTENSIONS
-    download_url = f"{content_url}?format=pdf" if converted_to_pdf else content_url
+    content_request_url = f"{content_url}?format=pdf" if converted_to_pdf else content_url
     token = context.auth.get("credentials", {}).get("access_token", "")
-    content_bytes = await _fetch_binary(download_url, token)
+    content_bytes = await _fetch_binary(content_request_url, token)
     if metadata.get("size", 0) > 0 and not content_bytes:
         raise ValueError("Microsoft Graph returned an empty download for a non-empty file")
+    if len(content_bytes) > MAX_INLINE_FILE_BYTES:
+        # A PDF conversion can be larger than the original file.
+        return too_large(len(content_bytes))
 
     content_type = "application/pdf" if converted_to_pdf else original_mime_type
     output_name = f"{name.rsplit('.', 1)[0]}.pdf" if converted_to_pdf else name
+    item_metadata["convertedToPdf"] = converted_to_pdf
     return (
         {
             "content": base64.b64encode(content_bytes).decode("ascii"),
             "name": output_name,
             "contentType": content_type,
         },
-        {
-            "id": metadata["id"],
-            "name": name,
-            "size": metadata["size"],
-            "mimeType": original_mime_type,
-            "webUrl": metadata.get("webUrl", ""),
-            "convertedToPdf": converted_to_pdf,
-        },
+        item_metadata,
     )
+
+
+def _drive_item_result(file_data: Dict[str, str] | None, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """Build a read action's result. The file is left out when it is too large to return."""
+    result: Dict[str, Any] = {"metadata": metadata}
+    if file_data is not None:
+        result["file"] = file_data
+    return result
 
 
 async def _fetch_binary(url: str, token: str) -> bytes:
@@ -1426,7 +1469,7 @@ class ReadOneDriveFileContentAction(ActionHandler):
                 f"{GRAPH_API_BASE}/me/drive/items/{encoded_file_id}",
                 f"{GRAPH_API_BASE}/me/drive/items/{encoded_file_id}/content",
             )
-            return ActionResult(data={"file": file_data, "metadata": metadata}, cost_usd=0.0)
+            return ActionResult(data=_drive_item_result(file_data, metadata), cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -2226,7 +2269,7 @@ class ReadSharePointDocumentAction(ActionHandler):
             file_data, metadata = await _download_drive_item(context, metadata_url, content_url)
             metadata["site_id"] = site_id
             metadata["drive_id"] = drive_id or ""
-            return ActionResult(data={"file": file_data, "metadata": metadata}, cost_usd=0.0)
+            return ActionResult(data=_drive_item_result(file_data, metadata), cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))

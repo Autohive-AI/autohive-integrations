@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "4.1.1",
+  "version": "4.3.0",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -15,6 +15,8 @@
       "crm.objects.contacts.write",
       "crm.objects.deals.read",
       "crm.objects.deals.write",
+      "crm.objects.leads.read",
+      "crm.objects.leads.write",
       "crm.objects.owners.read",
       "crm.lists.read",
       "crm.lists.write",
@@ -32,6 +34,533 @@
     ]
   },
   "actions": {
+    "delete_lead": {
+      "display_name": "Delete Lead",
+      "description": "Delete a HubSpot Lead by moving it to the recycling bin. It can be restored in HubSpot.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "lead_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$",
+            "description": "HubSpot Lead record ID"
+          }
+        },
+        "required": [
+          "lead_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "archived": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "archived"
+        ]
+      }
+    },
+    "batch_delete_leads": {
+      "display_name": "Batch Delete Leads",
+      "description": "Delete up to 100 HubSpot Leads by moving them to the recycling bin. They can be restored in HubSpot.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "lead_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$",
+              "description": "HubSpot Lead record ID"
+            }
+          }
+        },
+        "required": [
+          "lead_ids"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "archived": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "archived"
+        ]
+      }
+    },
+    "list_leads": {
+      "display_name": "List Leads",
+      "description": "List one page of HubSpot Lead records. Pass the returned after cursor to get the next page.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "properties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Internal Lead property names to return."
+          },
+          "propertiesWithHistory": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Internal Lead property names to return with their value history."
+          },
+          "associations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Linked record types to include, such as contacts or companies."
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "Return archived Lead records."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 100
+          },
+          "after": {
+            "type": "string",
+            "description": "Cursor returned by the previous page."
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "leads": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "after": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "leads",
+          "after"
+        ]
+      }
+    },
+    "get_lead": {
+      "display_name": "Get Lead",
+      "description": "Retrieve a HubSpot Lead record by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "lead_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$",
+            "description": "HubSpot Lead record ID"
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Internal Lead property names to return."
+          },
+          "propertiesWithHistory": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Internal Lead property names to return with their value history."
+          },
+          "associations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Linked record types to include, such as contacts or companies."
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "Return archived Lead records."
+          }
+        },
+        "required": [
+          "lead_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "lead": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "lead"
+        ]
+      }
+    },
+    "create_lead": {
+      "display_name": "Create Lead",
+      "description": "Create a HubSpot Lead linked to an existing contact.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Name of the new Lead."
+          },
+          "contact_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$",
+            "description": "ID of the existing HubSpot contact to link to this Lead"
+          },
+          "properties": {
+            "type": "object",
+            "description": "Internal HubSpot property names and values. Use an empty string to clear a property.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "contact_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "lead": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "lead"
+        ]
+      }
+    },
+    "update_lead": {
+      "display_name": "Update Lead",
+      "description": "Update properties on an existing HubSpot Lead.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "lead_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$",
+            "description": "HubSpot Lead record ID"
+          },
+          "properties": {
+            "type": "object",
+            "description": "Internal HubSpot property names and values. Use an empty string to clear a property.",
+            "minProperties": 1,
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "lead_id",
+          "properties"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "lead": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "lead"
+        ]
+      }
+    },
+    "archive_lead": {
+      "display_name": "Archive Lead",
+      "description": "Move a HubSpot Lead to the recycling bin.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "lead_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$",
+            "description": "HubSpot Lead record ID"
+          }
+        },
+        "required": [
+          "lead_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "archived": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "archived"
+        ]
+      }
+    },
+    "merge_leads": {
+      "display_name": "Merge Leads",
+      "description": "Merge two HubSpot Leads and return the resulting record.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "primary_lead_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$",
+            "description": "ID of the primary Lead"
+          },
+          "lead_id_to_merge": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$",
+            "description": "ID of the secondary Lead"
+          }
+        },
+        "required": [
+          "primary_lead_id",
+          "lead_id_to_merge"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "lead": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "lead"
+        ]
+      }
+    },
+    "batch_create_leads": {
+      "display_name": "Batch Create Leads",
+      "description": "Create up to 100 HubSpot Leads linked to existing contacts. Check results and errors for partial success.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "leads": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Name of the new Lead."
+                },
+                "contact_id": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "description": "ID of the existing HubSpot contact to link to this Lead"
+                },
+                "properties": {
+                  "type": "object",
+                  "description": "Internal HubSpot property names and values. Use an empty string to clear a property.",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "contact_id"
+              ]
+            }
+          }
+        },
+        "required": [
+          "leads"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "batch_update_leads": {
+      "display_name": "Batch Update Leads",
+      "description": "Update properties on up to 100 HubSpot Leads. Check results and errors for partial success.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "leads": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "properties": {
+                "lead_id": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "description": "HubSpot Lead record ID"
+                },
+                "properties": {
+                  "type": "object",
+                  "description": "Internal HubSpot property names and values. Use an empty string to clear a property.",
+                  "minProperties": 1,
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "lead_id",
+                "properties"
+              ]
+            }
+          }
+        },
+        "required": [
+          "leads"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "batch_archive_leads": {
+      "display_name": "Batch Archive Leads",
+      "description": "Move up to 100 HubSpot Leads to the recycling bin.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "lead_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$",
+              "description": "HubSpot Lead record ID"
+            }
+          }
+        },
+        "required": [
+          "lead_ids"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "archived": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "archived"
+        ]
+      }
+    },
+    "remove_lead_association": {
+      "display_name": "Remove Lead Association",
+      "description": "Remove an association between a Lead and another CRM record. HubSpot deletes the Lead if you remove its last primary association.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "lead_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$",
+            "description": "HubSpot Lead record ID"
+          },
+          "to_object_type": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "description": "Type of the linked CRM record, such as contacts."
+          },
+          "to_object_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$",
+            "description": "ID of the linked CRM record"
+          },
+          "association_type_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Association type ID from Get Association Labels."
+          }
+        },
+        "required": [
+          "lead_id",
+          "to_object_type",
+          "to_object_id",
+          "association_type_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "removed"
+        ]
+      }
+    },
     "create_call": {
       "display_name": "Create Call",
       "description": "Log a call activity in HubSpot CRM. Optionally link it to a contact.",
@@ -4878,7 +5407,8 @@
                   "meetings",
                   "line_items",
                   "quotes",
-                  "products"
+                  "products",
+                  "leads"
                 ]
               },
               {
@@ -4908,7 +5438,8 @@
                   "meetings",
                   "line_items",
                   "quotes",
-                  "products"
+                  "products",
+                  "leads"
                 ]
               },
               {
@@ -5148,7 +5679,7 @@
           "object_type": {
             "type": "string",
             "pattern": "^[A-Za-z0-9_-]+$",
-            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, line_items, quotes, products or a custom object type ID (2-xxxx). Requires the corresponding granted scope."
+            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, line_items, quotes, products, leads or a custom object type ID (2-xxxx). Requires the corresponding granted scope."
           },
           "filters": {
             "type": "array",
@@ -5434,7 +5965,7 @@
           "object_type": {
             "type": "string",
             "pattern": "^[A-Za-z0-9_-]+$",
-            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, line_items, quotes, products or a custom object type ID (2-xxxx). Requires the corresponding granted scope."
+            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, line_items, quotes, products, leads or a custom object type ID (2-xxxx). Requires the corresponding granted scope."
           },
           "ids": {
             "type": "array",
@@ -5557,7 +6088,7 @@
           "object_type": {
             "type": "string",
             "pattern": "^[A-Za-z0-9_-]+$",
-            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, line_items, quotes, products or a custom object type ID (2-xxxx). Requires the corresponding granted scope."
+            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, line_items, quotes, products, leads or a custom object type ID (2-xxxx). Requires the corresponding granted scope."
           },
           "query": {
             "type": "string",
