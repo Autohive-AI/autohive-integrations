@@ -942,7 +942,8 @@ The tests only read existing data; prepare fixtures separately:
    Set `GITHUB_TEST_ACTIVITY_USERNAME`, `GITHUB_TEST_SEARCH_REPO_A/B` to full
    `owner/repo` names, and `GITHUB_TEST_SEARCH_SHA_A/B` to the corresponding full
    commit SHAs. Wait until both commits are indexed. Keep both among the account's
-   newest 100 commits by committer date so one unscoped search page contains them.
+   newest 100 commits by author date (the test's default sort order) so one
+   unscoped search page contains them.
 2. In a fixture repository, create a feature branch with an existing base commit
    `B`. Using the dedicated account, push exactly one child commit `H` to that
    existing branch with a normal fast-forward push. Do not use a branch-creation
