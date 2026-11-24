@@ -50,7 +50,7 @@ def _parse_iso_utc(value: str, *, end_of_day: bool = False) -> Optional[datetime
     if not value:
         return None
     text = value.strip()
-    date_only = "T" not in text and " " not in text
+    date_only = re.fullmatch(r"\d{4}-\d{2}-\d{2}", text) is not None
     try:
         dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:

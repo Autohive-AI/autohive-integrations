@@ -42,6 +42,22 @@ def comparison(commits, total=None, status="ahead"):
 
 
 class TestSearchCommits:
+    @pytest.mark.parametrize(
+        "until,expected",
+        [
+            ("2026-11-23t12:00:00Z", "2026-11-23T12:00:00Z"),
+            ("2026-11-23T12:00:00Z", "2026-11-23T12:00:00Z"),
+            ("2026-11-23 12:00:00Z", "2026-11-23T12:00:00Z"),
+            ("2026-11-23", "2026-11-23T23:59:59Z"),
+        ],
+    )
+    async def test_until_expands_only_date_inputs(self, mock_context, until, expected):
+        mock_context.fetch.return_value = search_page([COMMIT])
+        result = await github.execute_action("search_commits", {"username": "octocat", "until": until}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert result.result.data["commits"][0]["sha"] == COMMIT["sha"]
+        assert mock_context.fetch.call_args.kwargs["params"]["q"] == f"author:octocat author-date:<={expected}"
+
     async def test_connected_user_and_compact_commits(self, mock_context):
         mock_context.fetch.side_effect = [response({"login": "octocat"}), search_page([COMMIT])]
         result = await github.execute_action("search_commits", {}, mock_context)
@@ -142,6 +158,24 @@ class TestSearchCommits:
 
 
 class TestListUserActivity:
+    @pytest.mark.parametrize(
+        "until,expected_ids",
+        [
+            ("2026-11-23t12:00:00Z", ["123"]),
+            ("2026-11-23T12:00:00Z", ["123"]),
+            ("2026-11-23 12:00:00Z", ["123"]),
+            ("2026-11-23", ["124", "123"]),
+        ],
+    )
+    async def test_until_expands_only_date_inputs(self, mock_context, until, expected_ids):
+        later = {**PUSH, "id": "124", "created_at": "2026-11-23T18:00:00Z"}
+        mock_context.fetch.return_value = response([later, PUSH])
+        result = await github.execute_action(
+            "list_user_activity", {"username": "octocat", "until": until}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert [event["id"] for event in result.result.data["events"]] == expected_ids
+
     async def test_filters_dates_repository_and_event_type_before_expansion(self, mock_context):
         old = {**PUSH, "created_at": "2026-11-22T10:00:00Z"}
         future = {**PUSH, "created_at": "2026-11-24T10:00:00Z"}
