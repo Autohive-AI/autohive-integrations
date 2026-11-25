@@ -1,6 +1,6 @@
 {
   "name": "GitHub",
-  "version": "2.6.2",
+  "version": "2.7.0",
   "description": "GitHub API integration for complete repository management including CRUD operations for repos, branches, issues, PRs, files, and more.",
   "display_name": "GitHub",
   "supports_connected_account": true,
@@ -420,7 +420,7 @@
     },
     "list_commits": {
       "display_name": "List Commits",
-      "description": "List commits for a repository",
+      "description": "List commits for a repository, optionally filtered by author",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -439,6 +439,10 @@
           "path": {
             "type": "string",
             "description": "Only commits containing this file path"
+          },
+          "author": {
+            "type": "string",
+            "description": "GitHub username or email address to filter by commit author. Omit to include all authors."
           },
           "since": {
             "type": "string",
@@ -1837,7 +1841,11 @@
                   "description": "Side for the start_line when making a multi-line comment. Usually matches side."
                 }
               },
-              "required": ["path", "line", "body"]
+              "required": [
+                "path",
+                "line",
+                "body"
+              ]
             }
           }
         },
@@ -3642,6 +3650,416 @@
             "type": "array"
           }
         }
+      }
+    },
+    "search_commits": {
+      "display_name": "Search Commits",
+      "description": "Find indexed default-branch commits authored by a user across accessible repositories, filtered by date. For a specific feature branch, use list_commits with sha and author.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "GitHub username. Omit to use the connected account.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*(\\[bot\\])?$"
+          },
+          "since": {
+            "type": "string",
+            "description": "Inclusive lower bound: ISO 8601 timestamp with timezone, or YYYY-MM-DD at 00:00 UTC. Naive timestamps use UTC.",
+            "minLength": 1
+          },
+          "until": {
+            "type": "string",
+            "description": "Inclusive upper bound: ISO 8601 timestamp with timezone, or YYYY-MM-DD covering the whole UTC day.",
+            "minLength": 1
+          },
+          "organization": {
+            "type": "string",
+            "description": "Optional organization to restrict results to.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*$"
+          },
+          "repository": {
+            "type": "string",
+            "description": "Optional full repository name: owner/repo.",
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+          },
+          "date_field": {
+            "type": "string",
+            "description": "Which commit timestamp to filter and sort by. Neither is the push timestamp.",
+            "enum": [
+              "author-date",
+              "committer-date"
+            ],
+            "default": "author-date"
+          },
+          "include_merges": {
+            "type": "boolean",
+            "description": "Whether to include merge commits.",
+            "default": true
+          },
+          "page": {
+            "type": "integer",
+            "description": "Starting page; pass next_page to continue the same query.",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 1
+          },
+          "max_pages": {
+            "type": "integer",
+            "description": "Maximum pages to fetch, 100 commits per page. GitHub allows at most 1,000 matches per query.",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string",
+            "description": "Search query sent to GitHub."
+          },
+          "commits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sha": {
+                  "type": "string"
+                },
+                "author": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "email": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                },
+                "committer": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "email": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                },
+                "message": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "repository": {
+                  "type": "string",
+                  "description": "Full repository name, owner/repo."
+                },
+                "author_login": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Linked GitHub author, if available. May differ from the pusher."
+                },
+                "committer_login": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Linked GitHub committer, if available."
+                }
+              },
+              "required": [
+                "sha",
+                "repository",
+                "message",
+                "url",
+                "author",
+                "committer",
+                "author_login",
+                "committer_login"
+              ]
+            }
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Total matching commits reported by GitHub; at most 1,000 can be retrieved."
+          },
+          "pages_fetched": {
+            "type": "integer"
+          },
+          "next_page": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Next retrievable page, or null. Narrow the query when the 1,000-result cap is reached."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "More matches exist beyond the pages returned or GitHub search cap."
+          },
+          "incomplete_results": {
+            "type": "boolean",
+            "description": "GitHub timed out before finding all matches. Retry or narrow the query."
+          },
+          "warnings": {
+            "type": "array",
+            "description": "Provider limitations and reasons the result may be partial.",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "username",
+          "query",
+          "commits",
+          "total_count",
+          "pages_fetched",
+          "next_page",
+          "truncated",
+          "incomplete_results",
+          "warnings"
+        ]
+      }
+    },
+    "search_pull_requests": {
+      "display_name": "Search Pull Requests",
+      "description": "Search PRs by author across accessible repositories, with organization, selected repository, state, and date filters. Uses the search index, which may have indexing delays.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "author": {
+            "type": "string",
+            "description": "GitHub PR author username. Omit to use the connected account.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*(\\[bot\\])?$"
+          },
+          "organization": {
+            "type": "string",
+            "description": "Optional organization scope. If repositories are also supplied, all must belong to this organization.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*$"
+          },
+          "repositories": {
+            "type": "array",
+            "description": "Optional selected repositories in owner/repo format. Matches any listed repository. Omit or pass an empty array for all accessible repositories in the scope.",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+            },
+            "maxItems": 10,
+            "uniqueItems": true
+          },
+          "state": {
+            "type": "string",
+            "description": "PR state. closed includes merged PRs; merged selects only merged PRs.",
+            "enum": [
+              "all",
+              "open",
+              "closed",
+              "merged"
+            ],
+            "default": "all"
+          },
+          "since": {
+            "type": "string",
+            "description": "Inclusive lower bound: ISO 8601 timestamp with timezone, or YYYY-MM-DD at 00:00 UTC. Naive timestamps use UTC.",
+            "minLength": 1
+          },
+          "until": {
+            "type": "string",
+            "description": "Inclusive upper bound: ISO 8601 timestamp with timezone, or YYYY-MM-DD covering the whole UTC day.",
+            "minLength": 1
+          },
+          "date_field": {
+            "type": "string",
+            "description": "Timestamp to filter. Independent of sorting. created, updated, closed, or merged.",
+            "enum": [
+              "created",
+              "updated",
+              "closed",
+              "merged"
+            ],
+            "default": "updated"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Sort by creation time, last update, or comment count.",
+            "enum": [
+              "created",
+              "updated",
+              "comments"
+            ],
+            "default": "updated"
+          },
+          "order": {
+            "type": "string",
+            "description": "Sort direction.",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "default": "desc"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Starting page; pass next_page to continue the same query.",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 1
+          },
+          "max_pages": {
+            "type": "integer",
+            "description": "Maximum search pages to fetch, 100 PRs per page. At most 1,000 results per query.",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "pull_requests": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "repository": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string"
+                },
+                "number": {
+                  "type": "integer"
+                },
+                "author": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "state": {
+                  "type": "string",
+                  "description": "open or closed. A closed PR may be merged."
+                },
+                "draft": {
+                  "type": "boolean"
+                },
+                "closed_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "repository",
+                "title",
+                "url",
+                "created_at",
+                "updated_at",
+                "number",
+                "author",
+                "state",
+                "draft",
+                "closed_at"
+              ]
+            }
+          },
+          "query": {
+            "type": "string",
+            "description": "Search query sent to GitHub."
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Total matching PRs reported by GitHub; at most 1,000 can be retrieved."
+          },
+          "pages_fetched": {
+            "type": "integer"
+          },
+          "next_page": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Next retrievable page, or null. Narrow the query when the 1,000-result cap is reached."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "More matches exist beyond the pages returned or GitHub search cap."
+          },
+          "incomplete_results": {
+            "type": "boolean",
+            "description": "GitHub timed out before finding all matches. Retry or narrow the query."
+          },
+          "warnings": {
+            "type": "array",
+            "description": "Provider limitations and reasons the result may be partial.",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "author",
+          "query",
+          "pull_requests",
+          "total_count",
+          "pages_fetched",
+          "next_page",
+          "truncated",
+          "incomplete_results",
+          "warnings"
+        ]
       }
     }
   },

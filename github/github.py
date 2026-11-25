@@ -24,10 +24,11 @@ from autohive_integrations_sdk import (
 from typing import Dict, Any, List, Callable, Optional, TypeVar
 from urllib.parse import quote
 from functools import wraps
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import asyncio
 import base64
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ def _parse_iso_utc(value: str, *, end_of_day: bool = False) -> Optional[datetime
     if not value:
         return None
     text = value.strip()
-    date_only = "T" not in text and " " not in text
+    date_only = re.fullmatch(r"\d{4}-\d{2}-\d{2}", text) is not None
     try:
         dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
@@ -353,6 +354,7 @@ class GitHubAPI:
         since: str = None,
         until: str = None,
         max_pages: int = 10,
+        author: str = None,
     ) -> List[Dict[str, Any]]:
         """Get commits for a repository (bounded by max_pages)"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/commits"
@@ -366,6 +368,8 @@ class GitHubAPI:
             params["since"] = since
         if until:
             params["until"] = until
+        if author:
+            params["author"] = author
 
         return await GitHubAPI.paginated_fetch(context, url, params, max_pages=max_pages)
 
@@ -1296,6 +1300,244 @@ def _commit_summary(commit: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _search_date_range(since: Optional[str], until: Optional[str]) -> tuple[Optional[datetime], Optional[datetime]]:
+    """Validate inclusive date bounds; bare dates cover a whole UTC day."""
+    bounds = []
+    for key, value in (("since", since), ("until", until)):
+        parsed = _parse_iso_utc(value, end_of_day=key == "until") if value else None
+        if value and parsed is None:
+            raise ValueError(f"{key} must be an ISO 8601 date or timestamp")
+        bounds.append(parsed)
+    if all(bounds) and bounds[0] > bounds[1]:
+        raise ValueError("since must be before or equal to until")
+    return bounds[0], bounds[1]
+
+
+async def _github_read(context: ExecutionContext, path: str, params: Dict[str, Any] = None):
+    """Read a GitHub response, including contexts that return non-2xx responses."""
+    fetch_result = await context.fetch(
+        f"{GitHubAPI.BASE_URL}{path}", method="GET", params=params, headers=GitHubAPI.get_headers(context)
+    )
+    if fetch_result.status >= 400:
+        message = (
+            fetch_result.data.get("message", "Request failed")
+            if isinstance(fetch_result.data, dict)
+            else "Request failed"
+        )
+        raise ValueError(f"GitHub HTTP {fetch_result.status}: {message}")
+    return fetch_result.data
+
+
+async def _search_username(inputs: Dict[str, Any], context: ExecutionContext) -> str:
+    if inputs.get("username"):
+        return inputs["username"]
+    user = await _github_read(context, "/user")
+    return user["login"]
+
+
+def _search_commit(commit: Dict[str, Any], repository: str) -> Dict[str, Any]:
+    return {
+        **_commit_summary(commit),
+        "repository": repository,
+        "author_login": (commit.get("author") or {}).get("login"),
+        "committer_login": (commit.get("committer") or {}).get("login"),
+    }
+
+
+@github.action("search_commits")
+class SearchCommits(ActionHandler):
+    """Search a user's default-branch commits across accessible repositories."""
+
+    @handle_github_errors("search_commits")
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        since, until = _search_date_range(inputs.get("since"), inputs.get("until"))
+        username = await _search_username(inputs, context)
+        date_field = inputs.get("date_field", "author-date")
+        qualifiers = [f"author:{username}"]
+        if inputs.get("organization"):
+            qualifiers.append(f"org:{inputs['organization']}")
+        if inputs.get("repository"):
+            qualifiers.append(f"repo:{inputs['repository']}")
+        # Search indexes whole seconds. Keep the inclusive interval within the
+        # requested bounds, including when the lower bound has a fractional part.
+        if since and since.microsecond:
+            since = since.replace(microsecond=0) + timedelta(seconds=1)
+        if until:
+            until = until.replace(microsecond=0)
+        timestamps = [
+            bound.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z") if bound else None
+            for bound in (since, until)
+        ]
+        if since and until:
+            qualifiers.append(f"{date_field}:{timestamps[0]}..{timestamps[1]}")
+        elif since:
+            qualifiers.append(f"{date_field}:>={timestamps[0]}")
+        elif until:
+            qualifiers.append(f"{date_field}:<={timestamps[1]}")
+        if not inputs.get("include_merges", True):
+            qualifiers.append("merge:false")
+        query = " ".join(qualifiers)
+        commits = []
+        incomplete = False
+        total = 0
+        next_page = None
+        pages_fetched = 0
+        start_page = inputs.get("page", 1)
+        for page in range(start_page, min(start_page + inputs.get("max_pages", 1), 11)):
+            if since and until and since > until:
+                break  # No indexed second falls within this subsecond interval.
+            response = await _github_read(
+                context,
+                "/search/commits",
+                {"q": query, "sort": date_field, "order": "desc", "per_page": 100, "page": page},
+            )
+            pages_fetched += 1
+            total = response["total_count"]
+            incomplete = incomplete or response.get("incomplete_results", False)
+            items = response["items"]
+            commits.extend(_search_commit(item, item["repository"]["full_name"]) for item in items)
+            has_more = page * 100 < total and len(items) == 100
+            next_page = page + 1 if has_more and page < 10 else None
+            if not has_more:
+                break
+        truncated = next_page is not None or total > 1000
+        warnings = [
+            "Search only includes indexed commits on repository default branches; feature-branch work is excluded."
+        ]
+        if incomplete:
+            warnings.append("GitHub reported incomplete search results; retry or narrow the date range.")
+        if truncated:
+            warnings.append(
+                "More matches exist. Continue with next_page, or narrow the query if the 1,000-result cap was reached."
+            )
+        return ActionResult(
+            data={
+                "username": username,
+                "query": query,
+                "commits": commits,
+                "total_count": total,
+                "pages_fetched": pages_fetched,
+                "next_page": next_page,
+                "truncated": truncated,
+                "incomplete_results": incomplete,
+                "warnings": warnings,
+            },
+            cost_usd=0.0,
+        )
+
+
+def _pull_request_search_summary(item: Dict[str, Any]) -> Dict[str, Any]:
+    if "pull_request" not in item:
+        raise ValueError("GitHub returned a non-pull-request search result")
+    return {
+        "repository": item["repository_url"].removeprefix(f"{GitHubAPI.BASE_URL}/repos/"),
+        "number": item["number"],
+        "title": item["title"],
+        "url": item["html_url"],
+        "author": (item.get("user") or {}).get("login"),
+        "state": item["state"],
+        "draft": item.get("draft", False),
+        "created_at": item["created_at"],
+        "updated_at": item["updated_at"],
+        "closed_at": item.get("closed_at"),
+    }
+
+
+@github.action("search_pull_requests")
+class SearchPullRequests(ActionHandler):
+    """Search authored pull requests across accessible repositories."""
+
+    @handle_github_errors("search_pull_requests")
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        since, until = _search_date_range(inputs.get("since"), inputs.get("until"))
+        author = inputs.get("author") or await _search_username({}, context)
+        qualifiers = ["is:pr", f"author:{author}"]
+        organization = inputs.get("organization")
+        repositories = inputs.get("repositories", [])
+        if organization:
+            if any(repo.split("/", 1)[0].lower() != organization.lower() for repo in repositories):
+                raise ValueError("Selected repositories must belong to the specified organization")
+            # Repository scopes already enforce ownership. Avoid mixing broad
+            # organization scopes with a caller's explicitly selected repos.
+            if not repositories:
+                qualifiers.append(f"org:{organization}")
+        qualifiers.extend(f"repo:{repo}" for repo in repositories)
+        state = inputs.get("state", "all")
+        if state == "merged":
+            qualifiers.append("is:merged")
+        elif state != "all":
+            qualifiers.append(f"state:{state}")
+        # GitHub search indexes timestamps at whole-second precision.
+        if since and since.microsecond:
+            since = since.replace(microsecond=0) + timedelta(seconds=1)
+        if until:
+            until = until.replace(microsecond=0)
+        timestamps = [
+            bound.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z") if bound else None
+            for bound in (since, until)
+        ]
+        date_field = inputs.get("date_field", "updated")
+        if since and until:
+            qualifiers.append(f"{date_field}:{timestamps[0]}..{timestamps[1]}")
+        elif since:
+            qualifiers.append(f"{date_field}:>={timestamps[0]}")
+        elif until:
+            qualifiers.append(f"{date_field}:<={timestamps[1]}")
+        query = " ".join(qualifiers)
+        pull_requests = []
+        total = 0
+        incomplete = False
+        pages_fetched = 0
+        next_page = None
+        start_page = inputs.get("page", 1)
+        for page in range(start_page, min(start_page + inputs.get("max_pages", 1), 11)):
+            if since and until and since > until:
+                break
+            response = await _github_read(
+                context,
+                "/search/issues",
+                {
+                    "q": query,
+                    "sort": inputs.get("sort", "updated"),
+                    "order": inputs.get("order", "desc"),
+                    "per_page": 100,
+                    "page": page,
+                },
+            )
+            pages_fetched += 1
+            total = response["total_count"]
+            incomplete = incomplete or response.get("incomplete_results", False)
+            items = response["items"]
+            pull_requests.extend(_pull_request_search_summary(item) for item in items)
+            has_more = page * 100 < total and len(items) == 100
+            next_page = page + 1 if has_more and page < 10 else None
+            if not has_more:
+                break
+        truncated = next_page is not None or total > 1000
+        warnings = [
+            "Search uses GitHub's index and may lag behind repository changes; results are not guaranteed real-time.",
+            "Results include only accessible pull requests, not a history of all user activity.",
+        ]
+        if incomplete:
+            warnings.append("GitHub reported incomplete search results; retry or narrow the date range.")
+        if truncated:
+            warnings.append("More matches exist; continue with next_page or narrow the query at the 1,000-result cap.")
+        return ActionResult(
+            data={
+                "author": author,
+                "query": query,
+                "pull_requests": pull_requests,
+                "total_count": total,
+                "pages_fetched": pages_fetched,
+                "next_page": next_page,
+                "truncated": truncated,
+                "incomplete_results": incomplete,
+                "warnings": warnings,
+            },
+            cost_usd=0.0,
+        )
+
+
 @github.action("list_commits")
 class ListCommits(ActionHandler):
     """List commits for a repository"""
@@ -1311,6 +1553,7 @@ class ListCommits(ActionHandler):
             since=inputs.get("since"),
             until=inputs.get("until"),
             max_pages=inputs.get("max_pages", 10),
+            author=inputs.get("author"),
         )
 
         return ActionResult(

@@ -288,6 +288,73 @@ Retrieves details of a specific pull request.
 - `pull_request` (object): Pull request details
 - `result` (boolean): Operation success status
 
+#### `search_pull_requests`
+
+Finds PRs authored by a user across accessible repositories using
+[GitHub issue/PR search](https://docs.github.com/en/rest/search/search#search-issues-and-pull-requests)
+with `is:pr`. This retrieves pull requests, not push events, reviews, or an activity timeline.
+
+**Inputs:**
+
+- `author` (string, optional): GitHub PR author username. Defaults to the connected
+  account, requiring one additional request to identify it.
+- `organization` (string, optional): Restrict to an organization.
+- `repositories` (array of strings, optional): Up to 10 unique `owner/repo` names.
+  Matches any listed repository. If an organization is also provided, every
+  selected repository must belong to it. Omit or pass an empty array to search
+  all accessible repositories within the organization scope, or globally if no
+  organization is supplied.
+- `state` (string, optional): `all` (default), `open`, `closed`, or `merged`.
+  Closed includes merged PRs; merged selects only merged PRs.
+- `since`, `until` (strings, optional): Inclusive ISO 8601 bounds. Bare dates cover
+  the whole UTC day; timezone offsets are converted to UTC, and naive timestamps
+  use UTC. Invalid or reversed ranges fail before any request. Search indexes
+  whole seconds: fractional lower bounds round up and upper bounds round down.
+- `date_field` (string, optional): Timestamp to filter: `updated` (default),
+  `created`, `closed`, or `merged`. This filters PR timestamps, not commit or push
+  timestamps. Closed/merged date bounds match only PRs with those timestamps.
+- `sort` (string, optional): `updated` (default), `created`, or `comments`.
+  Independent of `date_field`; there is no merged-time sort in this action.
+- `order` (string, optional): `desc` (default) or `asc`.
+- `page` (integer, optional): Starting page, 1?10 (default: 1).
+- `max_pages` (integer, optional): Pages to fetch, 1?10 (default: 1), up to 100 PRs
+  per page. Maximum requests equal this budget, plus the optional account lookup.
+
+**Outputs:** `author`, generated `query`, `pull_requests`, `total_count`,
+`pages_fetched`, `next_page`, `truncated`, `incomplete_results`, and `warnings`.
+Each PR summary includes repository, number, title, URL, author (nullable), state,
+draft status, and creation/update/closure timestamps. `state` remains `open` or
+`closed`; it does not independently report merge status. Use `get_pull_request`
+when full PR details are needed.
+
+For example, find an author's PRs updated during one New Zealand calendar day:
+
+```json
+{
+  "author": "autohive-integrations-ci",
+  "repositories": [
+    "autohive-integrations-ci/github-integration-fixture-a",
+    "autohive-integrations-ci/github-integration-fixture-b"
+  ],
+  "state": "all",
+  "date_field": "updated",
+  "since": "2026-11-25T00:00:00+13:00",
+  "until": "2026-11-25T23:59:59+13:00"
+}
+```
+
+**Limitations:** This action avoids the Events API dependency but still uses
+GitHub's search index: indexing delays are possible, and results are **not
+promised to be real-time or complete**. Only PRs accessible to the connected
+account are searchable, including authorized private repositories. Search errors
+(such as HTTP 422 for an unsearchable repository) remain errors; they are not
+converted into empty success results. Search has a separate rate limit and a
+1,000-result cap. Use `next_page` with the same filters to continue; narrow the
+query at the cap. `incomplete_results` preserves GitHub's timeout indication, and
+`truncated` reports matches beyond the returned pages/cap. False flags do not
+prove that every recent PR has been indexed. The existing OAuth connection is
+used without additional scopes.
+
 #### `list_pull_requests`
 
 Lists pull requests in a repository.
@@ -323,6 +390,55 @@ Merges a pull request.
 
 ### Commit Actions
 
+#### `search_commits`
+
+Finds commits authored by a user across accessible repositories without listing each
+repository first. Uses [GitHub commit search](https://docs.github.com/en/rest/search/search#search-commits).
+
+**Inputs:**
+
+- `username` (string, optional): Commit author. Defaults to the connected account
+  (one additional request to identify the account).
+- `since`, `until` (strings, optional): Inclusive ISO 8601 bounds. Bare dates cover
+  the whole UTC day; timestamps can include a timezone offset. Naive timestamps
+  use UTC. Invalid or reversed ranges return an error before any API request.
+  Commit search uses whole seconds: fractional lower bounds round up and upper
+  bounds round down. Intervals containing no whole second return no matches.
+- `organization` (string, optional): Restrict to an organization.
+- `repository` (string, optional): Restrict to `owner/repo`.
+- `date_field` (string, optional): `author-date` (default) or `committer-date`.
+- `include_merges` (boolean, optional): Include merge commits (default: true).
+- `page` (integer, optional): Starting page, 1–10 (default: 1).
+- `max_pages` (integer, optional): Maximum pages to fetch, 1–10 (default: 1).
+  Each page contains up to 100 commits.
+
+**Outputs:** An object containing `username`, the generated `query`, `commits`,
+`total_count`, `pages_fetched`, `next_page`, `truncated`, `incomplete_results`, and
+`warnings`. Each commit contains its repository, SHA, message, URL, author and
+committer signatures, and linked GitHub logins (which can be null). Results are
+sorted newest first by `date_field`.
+
+**Limitations:** GitHub searches only indexed commits on the **default branch**;
+unmerged feature-branch commits are excluded. Use `list_commits` with `sha` and
+`author` to read a specific branch directly. Commit dates are not push dates.
+Search returns at most 1,000 matches per query and has a separate rate limit
+(normally 30 authenticated requests per minute). Use `next_page` with the same
+filters to continue, or narrow the date range when the search cap is reached.
+`incomplete_results` preserves GitHub's indication that its search timed out;
+`truncated` indicates more matches beyond the returned pages or search cap.
+Neither flag being false guarantees that unindexed work has been captured.
+See [search behavior](https://docs.github.com/en/search-github/searching-on-github/searching-commits).
+
+For example, find the connected user's commits for one UTC day:
+
+```json
+{
+  "since": "2026-11-23",
+  "until": "2026-11-23",
+  "organization": "Autohive-AI"
+}
+```
+
 #### `get_commit`
 
 Retrieves details of a specific commit.
@@ -345,11 +461,17 @@ Lists commits in a repository.
 - `repo` (string, required): Repository name
 - `sha` (string, optional): Branch, tag, or SHA to start from
 - `path` (string, optional): Filter by file path
-- `per_page` (integer, optional): Results per page, 1-100 (default: 30)
+- `author` (string, optional): GitHub username or email address to filter by commit author. Omit to include all authors; the author does not need to be the connected account
+- `since` (string, optional): ISO 8601 timestamp to filter commits after
+- `until` (string, optional): ISO 8601 timestamp to filter commits before
+- `max_pages` (integer, optional): Maximum pages to fetch, with 100 commits per page (default: 10)
 
 **Outputs:**
-- `commits` (array): List of commit objects
-- `result` (boolean): Operation success status
+- An array of commit summaries, including SHA, author, committer, message, and URL
+
+This action reads repository history directly, without using the Events API or
+commit search index. It uses the default branch unless `sha` selects another
+branch, tag, or commit. Author filtering applies within that selected history.
 
 ---
 
@@ -802,6 +924,47 @@ Common error scenarios:
 **Issue: Rate limit exceeded**
 - Solution: Use `get_rate_limit` to check status, wait for reset, or optimize requests
 
+## Live test fixtures
+
+Run the read-only suite from the repository root:
+
+```bash
+pytest github/tests/test_github_integration.py -m "integration and not destructive"
+```
+
+Set `GITHUB_ACCESS_TOKEN` and the search fixture variables listed in root
+`.env.example`. TeamCity provides the token through the connected GitHub OAuth
+account; `github/tests/teamcity.env` supplies the fixture settings. The connection
+must belong to `GITHUB_TEST_SEARCH_USERNAME` and be authorized for both private
+fixture repositories. Credentials are never stored in `teamcity.env`.
+
+Without a token the suite skips. With a token, fixture-dependent tests fail if
+required values or expected data are missing. The tests only read existing data;
+prepare the fixtures separately:
+
+1. Use two distinct repositories owned by the dedicated test account. The CI
+   fixtures are private repositories `github-integration-fixture-a` and
+   `github-integration-fixture-b` under `autohive-integrations-ci`. Set
+   `GITHUB_TEST_SEARCH_USERNAME` and `GITHUB_TEST_SEARCH_REPO_A/B` (`owner/repo`).
+2. Retain a known commit authored by this account on each default branch. Set
+   `GITHUB_TEST_SEARCH_SHA_A/B` to the full commit SHAs. Wait for indexing, and
+   keep both among the author's newest 100 searchable commits. Commit search
+   must find both repository/SHA pairs. Its fixture requires only username,
+   repositories, and SHAs; it has no PR-number or push-event dependency.
+3. Keep one open PR authored by this account in each repository. Set
+   `GITHUB_TEST_SEARCH_PR_A/B` to the repository-local PR numbers, not global IDs
+   or URLs. The PR search test omits `author` to verify connected-account lookup
+   and must return both known PRs from the two selected repositories. It requires
+   only username, repositories, and PR numbers; it has no commit-SHA or event
+   dependency. Wait for search indexing before running the read-only suite.
+
+The `list_commits` author-filter test needs only repository A and SHA A. It reads
+the known commit's author email, verifies matching results, and checks that an
+unrelated email returns no commits.
+
+These search tests validate known indexed data, not instantaneous
+visibility of newly created commits or PRs.
+
 ## Support
 
 For integration issues or questions:
@@ -810,6 +973,10 @@ For integration issues or questions:
 - Contact Autohive support for platform-related issues
 
 ## Version History
+
+- **2.7.0**
+  - Added cross-repository commit and pull request searches with author, scope, date, and pagination controls
+  - Added optional author filtering to `list_commits`
 
 - **2.6.0**
   - `get_file_content` now handles directory paths, returning a `type` field and an `entries` array instead of failing on GitHub's array response shape
