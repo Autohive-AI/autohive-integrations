@@ -1,0 +1,316 @@
+{
+    "name": "NZ Post",
+    "display_name": "NZ Post",
+    "version": "1.0.0",
+    "description": "Search, check, and retrieve New Zealand addresses using ParcelAddress and NZPost.AddressChecker with Autohive's shared credentials.",
+    "entry_point": "nz_post.py",
+    "supports_billing": false,
+    "actions": {
+        "search_addresses": {
+            "display_name": "Search Addresses",
+            "description": "Find up to ten New Zealand addresses matching an address fragment. Use an address_id from the results with Get Address.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "minLength": 4,
+                        "description": "At least four characters of a New Zealand address, for example 151 Victoria."
+                    },
+                    "count": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10,
+                        "default": 10,
+                        "description": "Maximum number of address suggestions, from 1 to 10."
+                    }
+                },
+                "required": [
+                    "query"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "description": "Whether NZ Post completed the lookup."
+                    },
+                    "addresses": {
+                        "type": "array",
+                        "description": "Matching addresses; an empty array means no matches.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "full_address": {
+                                    "type": "string",
+                                    "description": "Formatted New Zealand address."
+                                },
+                                "address_id": {
+                                    "type": "string",
+                                    "description": "Address identifier for Get Address."
+                                },
+                                "dpid": {
+                                    "type": "string",
+                                    "description": "Delivery point identifier when available."
+                                }
+                            }
+                        }
+                    },
+                    "errors": {
+                        "type": [
+                            "array",
+                            "object"
+                        ],
+                        "description": "NZ Post partial-result warnings when present."
+                    },
+                    "message_id": {
+                        "type": "string",
+                        "description": "NZ Post request identifier for support."
+                    }
+                },
+                "required": [
+                    "success",
+                    "addresses"
+                ]
+            }
+        },
+        "get_address": {
+            "display_name": "Get Address",
+            "description": "Retrieve a New Zealand address's postcode, city, coordinates and rural-delivery details using an NZ Post address ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "address_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Numeric NZ Post address_id returned by Search Addresses."
+                    }
+                },
+                "required": [
+                    "address_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "description": "Whether NZ Post completed the lookup."
+                    },
+                    "address": {
+                        "type": "object",
+                        "description": "NZ Post address details including postcode, city, suburb, is_rural_delivery, coordinates and dpid when available."
+                    },
+                    "errors": {
+                        "type": [
+                            "array",
+                            "object"
+                        ],
+                        "description": "NZ Post partial-result warnings when present."
+                    },
+                    "message_id": {
+                        "type": "string",
+                        "description": "NZ Post request identifier for support."
+                    }
+                },
+                "required": [
+                    "success",
+                    "address"
+                ]
+            }
+        },
+        "check_address": {
+            "display_name": "Check Address",
+            "description": "Find candidate matches for up to five address lines. Returns match scores and mail-delivery flags. Select a candidate when results are ambiguous; this action does not automatically accept or correct an address.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "address_line_1": {
+                        "type": "string",
+                        "description": "Line 1 of the New Zealand address.",
+                        "minLength": 1
+                    },
+                    "address_line_2": {
+                        "type": "string",
+                        "description": "Line 2 of the New Zealand address."
+                    },
+                    "address_line_3": {
+                        "type": "string",
+                        "description": "Line 3 of the New Zealand address."
+                    },
+                    "address_line_4": {
+                        "type": "string",
+                        "description": "Line 4 of the New Zealand address."
+                    },
+                    "address_line_5": {
+                        "type": "string",
+                        "description": "Line 5 of the New Zealand address."
+                    },
+                    "count": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10,
+                        "default": 10,
+                        "description": "Maximum number of suggestions to request (1-10)."
+                    }
+                },
+                "required": [
+                    "address_line_1"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "description": "Whether NZ Post completed the request."
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "NZ Post request status when present."
+                    },
+                    "addresses": {
+                        "type": "array",
+                        "description": "NZ Post candidate matches. An empty list means no matches. Provider scores, flags, and ordering are preserved.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "DPID": {
+                                    "type": "integer",
+                                    "description": "Delivery point identifier. Convert to a string for Get Postal Address Details."
+                                },
+                                "FullAddress": {
+                                    "type": "string",
+                                    "description": "Formatted candidate address."
+                                },
+                                "Deliverable": {
+                                    "type": "string",
+                                    "description": "NZ Post mail-delivery flag (Y or N). A rural postal address with N is not valid for mail delivery."
+                                },
+                                "Physical": {
+                                    "type": "string",
+                                    "description": "Whether this is a physical address (Y or N)."
+                                },
+                                "MatchScore": {
+                                    "type": "integer",
+                                    "description": "NZ Post match score. This is not a guarantee that the supplied address is correct."
+                                },
+                                "SourceDesc": {
+                                    "type": "string",
+                                    "description": "Address reference dataset source."
+                                }
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "success",
+                    "addresses"
+                ]
+            }
+        },
+        "get_postal_address_details": {
+            "display_name": "Get Postal Address Details",
+            "description": "Get formatted address lines, postcode, coordinates and mail-delivery information using a delivery point identifier (DPID). This differs from a ParcelAddress address_id.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "dpid": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Numeric delivery point identifier from Check Address or the dpid field from Search Addresses. Do not use an address_id or a partial-address UniqueId."
+                    }
+                },
+                "required": [
+                    "dpid"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "description": "Whether NZ Post completed the request."
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "NZ Post request status when present."
+                    },
+                    "details": {
+                        "type": [
+                            "array",
+                            "object"
+                        ],
+                        "description": "NZ Post postal address details, preserving AddressLine1-5, Postcode, Deliverable, RuralDelivery, delivery-day flags and coordinates when present.",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                },
+                "required": [
+                    "success",
+                    "details"
+                ]
+            }
+        },
+        "search_partial_addresses": {
+            "display_name": "Search Partial Addresses",
+            "description": "Find street, suburb, town and postcode suggestions from an address fragment. Results are partial addresses, not confirmed complete delivery addresses.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Part of a New Zealand street, suburb or town, for example willis."
+                    },
+                    "count": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10,
+                        "default": 10,
+                        "description": "Maximum number of suggestions to request (1-10)."
+                    }
+                },
+                "required": [
+                    "query"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "description": "Whether NZ Post completed the request."
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "NZ Post request status when present."
+                    },
+                    "addresses": {
+                        "type": "array",
+                        "description": "Partial-address suggestions; an empty list means no matches.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "UniqueId": {
+                                    "type": "integer",
+                                    "description": "Partial-address identifier. This is not a DPID or a ParcelAddress address_id."
+                                },
+                                "FullPartial": {
+                                    "type": "string",
+                                    "description": "Partial address, which can include street, suburb, town, city and postcode."
+                                }
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "success",
+                    "addresses"
+                ]
+            }
+        }
+    }
+}
