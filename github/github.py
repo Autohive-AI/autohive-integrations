@@ -1300,7 +1300,7 @@ def _commit_summary(commit: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _activity_date_range(since: Optional[str], until: Optional[str]) -> tuple[Optional[datetime], Optional[datetime]]:
+def _search_date_range(since: Optional[str], until: Optional[str]) -> tuple[Optional[datetime], Optional[datetime]]:
     """Validate inclusive date bounds; bare dates cover a whole UTC day."""
     bounds = []
     for key, value in (("since", since), ("until", until)):
@@ -1313,7 +1313,7 @@ def _activity_date_range(since: Optional[str], until: Optional[str]) -> tuple[Op
     return bounds[0], bounds[1]
 
 
-async def _github_read(context: ExecutionContext, path: str, params: Dict[str, Any] = None, *, with_headers=False):
+async def _github_read(context: ExecutionContext, path: str, params: Dict[str, Any] = None):
     """Read a GitHub response, including contexts that return non-2xx responses."""
     fetch_result = await context.fetch(
         f"{GitHubAPI.BASE_URL}{path}", method="GET", params=params, headers=GitHubAPI.get_headers(context)
@@ -1325,17 +1325,17 @@ async def _github_read(context: ExecutionContext, path: str, params: Dict[str, A
             else "Request failed"
         )
         raise ValueError(f"GitHub HTTP {fetch_result.status}: {message}")
-    return (fetch_result.data, fetch_result.headers) if with_headers else fetch_result.data
+    return fetch_result.data
 
 
-async def _activity_username(inputs: Dict[str, Any], context: ExecutionContext) -> str:
+async def _search_username(inputs: Dict[str, Any], context: ExecutionContext) -> str:
     if inputs.get("username"):
         return inputs["username"]
     user = await _github_read(context, "/user")
     return user["login"]
 
 
-def _activity_commit(commit: Dict[str, Any], repository: str) -> Dict[str, Any]:
+def _search_commit(commit: Dict[str, Any], repository: str) -> Dict[str, Any]:
     return {
         **_commit_summary(commit),
         "repository": repository,
@@ -1350,8 +1350,8 @@ class SearchCommits(ActionHandler):
 
     @handle_github_errors("search_commits")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        since, until = _activity_date_range(inputs.get("since"), inputs.get("until"))
-        username = await _activity_username(inputs, context)
+        since, until = _search_date_range(inputs.get("since"), inputs.get("until"))
+        username = await _search_username(inputs, context)
         date_field = inputs.get("date_field", "author-date")
         qualifiers = [f"author:{username}"]
         if inputs.get("organization"):
@@ -1395,7 +1395,7 @@ class SearchCommits(ActionHandler):
             total = response["total_count"]
             incomplete = incomplete or response.get("incomplete_results", False)
             items = response["items"]
-            commits.extend(_activity_commit(item, item["repository"]["full_name"]) for item in items)
+            commits.extend(_search_commit(item, item["repository"]["full_name"]) for item in items)
             has_more = page * 100 < total and len(items) == 100
             next_page = page + 1 if has_more and page < 10 else None
             if not has_more:
@@ -1426,144 +1426,112 @@ class SearchCommits(ActionHandler):
         )
 
 
-def _activity_summary(event: Dict[str, Any]) -> Dict[str, Any]:
-    """Keep activity useful to an agent without returning entire PR/repository objects."""
-    payload = event.get("payload") or {}
-    details = {
-        key: payload[key]
-        for key in ("action", "ref", "ref_type", "before", "head", "size", "distinct_size", "push_id")
-        if key in payload
-    }
-    for key in ("pull_request", "issue", "review", "comment", "release"):
-        if isinstance(payload.get(key), dict):
-            details[key] = {
-                field: payload[key][field]
-                for field in ("number", "title", "html_url", "state", "merged", "submitted_at")
-                if field in payload[key]
-            }
-            if payload[key].get("body"):
-                details[key]["body"] = payload[key]["body"][:1000]
+def _pull_request_search_summary(item: Dict[str, Any]) -> Dict[str, Any]:
+    if "pull_request" not in item:
+        raise ValueError("GitHub returned a non-pull-request search result")
     return {
-        "id": str(event["id"]),
-        "type": event["type"],
-        "created_at": event["created_at"],
-        "repository": event["repo"]["name"],
-        "actor": event["actor"]["login"],
-        "public": event["public"],
-        "payload": details,
-        "commits": [],
-        "commits_status": "not_requested",
+        "repository": item["repository_url"].removeprefix(f"{GitHubAPI.BASE_URL}/repos/"),
+        "number": item["number"],
+        "title": item["title"],
+        "url": item["html_url"],
+        "author": (item.get("user") or {}).get("login"),
+        "state": item["state"],
+        "draft": item.get("draft", False),
+        "created_at": item["created_at"],
+        "updated_at": item["updated_at"],
+        "closed_at": item.get("closed_at"),
     }
 
 
-async def _expand_activity_push(event: Dict[str, Any], context: ExecutionContext, max_pages: int):
-    """Compare only the range named by a push; never substitute unrelated branch history."""
-    payload = event["payload"]
-    before, head = payload.get("before"), payload.get("head")
-    if not before or not head or set(before) == {"0"} or set(head) == {"0"}:
-        event["commits_status"] = "unavailable"
-        event["commits_warning"] = "No comparable before/head range (for example a newly created or deleted branch)."
-        return
-    repository = event["repository"]
-    path = f"/repos/{quote(repository, safe='/')}/compare/{quote(before, safe='')}...{quote(head, safe='')}"
-    try:
-        for page in range(1, max_pages + 1):
-            response = await _github_read(context, path, {"per_page": 100, "page": page})
-            event["commits"].extend(_activity_commit(commit, repository) for commit in response["commits"])
-            if response["status"] == "diverged":
-                event["commits_status"] = "unavailable"
-                event["commits_warning"] = (
-                    "History diverged; comparison commits may not describe the exact force-pushed changes."
-                )
-                return
-            if page * 100 >= response["total_commits"] or len(response["commits"]) < 100:
-                event["commits_status"] = "complete"
-                return
-        event["commits_status"] = "truncated"
-        event["commits_warning"] = (
-            "Commit expansion reached max_commit_pages; use the before/head range to retrieve more."
-        )
-    except Exception as exc:
-        # Preserve other activity when one push's objects are no longer accessible.
-        event["commits_status"] = "unavailable"
-        event["commits_warning"] = str(exc)
+@github.action("search_pull_requests")
+class SearchPullRequests(ActionHandler):
+    """Search authored pull requests across accessible repositories."""
 
-
-@github.action("list_user_activity")
-class ListUserActivity(ActionHandler):
-    """Find recent user activity across repositories, optionally expanding pushes."""
-
-    @handle_github_errors("list_user_activity")
+    @handle_github_errors("search_pull_requests")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        since, until = _activity_date_range(inputs.get("since"), inputs.get("until"))
-        username = await _activity_username(inputs, context)
-        events = []
-        scanned = 0
-        oldest = None
-        next_page = None
-        has_more = False
+        since, until = _search_date_range(inputs.get("since"), inputs.get("until"))
+        author = inputs.get("author") or await _search_username({}, context)
+        qualifiers = ["is:pr", f"author:{author}"]
+        organization = inputs.get("organization")
+        repositories = inputs.get("repositories", [])
+        if organization:
+            if any(repo.split("/", 1)[0].lower() != organization.lower() for repo in repositories):
+                raise ValueError("Selected repositories must belong to the specified organization")
+            # Repository scopes already enforce ownership. Avoid mixing broad
+            # organization scopes with a caller's explicitly selected repos.
+            if not repositories:
+                qualifiers.append(f"org:{organization}")
+        qualifiers.extend(f"repo:{repo}" for repo in repositories)
+        state = inputs.get("state", "all")
+        if state == "merged":
+            qualifiers.append("is:merged")
+        elif state != "all":
+            qualifiers.append(f"state:{state}")
+        # GitHub search indexes timestamps at whole-second precision.
+        if since and since.microsecond:
+            since = since.replace(microsecond=0) + timedelta(seconds=1)
+        if until:
+            until = until.replace(microsecond=0)
+        timestamps = [
+            bound.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z") if bound else None
+            for bound in (since, until)
+        ]
+        date_field = inputs.get("date_field", "updated")
+        if since and until:
+            qualifiers.append(f"{date_field}:{timestamps[0]}..{timestamps[1]}")
+        elif since:
+            qualifiers.append(f"{date_field}:>={timestamps[0]}")
+        elif until:
+            qualifiers.append(f"{date_field}:<={timestamps[1]}")
+        query = " ".join(qualifiers)
+        pull_requests = []
+        total = 0
+        incomplete = False
         pages_fetched = 0
+        next_page = None
         start_page = inputs.get("page", 1)
-        for page in range(start_page, min(start_page + inputs.get("max_pages", 3), 4)):
-            batch, headers = await _github_read(
-                context, f"/users/{quote(username, safe='')}/events", {"per_page": 100, "page": page}, with_headers=True
+        for page in range(start_page, min(start_page + inputs.get("max_pages", 1), 11)):
+            if since and until and since > until:
+                break
+            response = await _github_read(
+                context,
+                "/search/issues",
+                {
+                    "q": query,
+                    "sort": inputs.get("sort", "updated"),
+                    "order": inputs.get("order", "desc"),
+                    "per_page": 100,
+                    "page": page,
+                },
             )
             pages_fetched += 1
-            scanned += len(batch)
-            link = next((value for key, value in headers.items() if key.lower() == "link"), "")
-            has_more = bool(re.search(r';\s*rel="next"', link)) if link else len(batch) == 100
-            for event in batch:
-                created = _parse_iso_utc(event["created_at"])
-                if created is None:
-                    raise ValueError("GitHub returned an invalid event timestamp")
-                oldest = min(oldest, created) if oldest else created
-                if (since and created < since) or (until and created > until):
-                    continue
-                repository = event["repo"]["name"]
-                if inputs.get("organization") and repository.split("/")[0].lower() != inputs["organization"].lower():
-                    continue
-                if inputs.get("repository") and repository.lower() != inputs["repository"].lower():
-                    continue
-                if inputs.get("event_types") and event["type"] not in inputs["event_types"]:
-                    continue
-                events.append(_activity_summary(event))
-            next_page = page + 1 if has_more and page < 3 else None
+            total = response["total_count"]
+            incomplete = incomplete or response.get("incomplete_results", False)
+            items = response["items"]
+            pull_requests.extend(_pull_request_search_summary(item) for item in items)
+            has_more = page * 100 < total and len(items) == 100
+            next_page = page + 1 if has_more and page < 10 else None
             if not has_more:
                 break
-        truncated = has_more or (page == 3 and len(batch) == 100)
+        truncated = next_page is not None or total > 1000
         warnings = [
-            "GitHub exposes at most 300 events from the past 30 days, with delays of up to 6 hours.",
-            "Empty results do not prove no activity.",
-            "Private events are available only for the authenticated user with appropriate access.",
+            "Search uses GitHub's index and may lag behind repository changes; results are not guaranteed real-time.",
+            "Results include only accessible pull requests, not a history of all user activity.",
         ]
+        if incomplete:
+            warnings.append("GitHub reported incomplete search results; retry or narrow the date range.")
         if truncated:
-            warnings.append("The page limit or GitHub's 300-event cap may hide older matching activity.")
-        pushes_expanded = 0
-        if inputs.get("include_commits", False):
-            warnings.append(
-                "Pushes identify the pusher; expanded commits may have other authors or earlier author dates."
-            )
-            for event in events:
-                if event["type"] != "PushEvent":
-                    continue
-                if pushes_expanded >= inputs.get("max_pushes", 10):
-                    event["commits_status"] = "budget_exceeded"
-                    continue
-                pushes_expanded += 1
-                await _expand_activity_push(event, context, inputs.get("max_commit_pages", 1))
-            if any(event["commits_status"] in ("unavailable", "truncated", "budget_exceeded") for event in events):
-                warnings.append(
-                    "Some pushes could not be fully expanded; check each event's commits_status and commits_warning."
-                )
+            warnings.append("More matches exist; continue with next_page or narrow the query at the 1,000-result cap.")
         return ActionResult(
             data={
-                "username": username,
-                "events": events,
-                "events_scanned": scanned,
+                "author": author,
+                "query": query,
+                "pull_requests": pull_requests,
+                "total_count": total,
                 "pages_fetched": pages_fetched,
-                "oldest_scanned_at": oldest.isoformat() if oldest else None,
                 "next_page": next_page,
                 "truncated": truncated,
+                "incomplete_results": incomplete,
                 "warnings": warnings,
             },
             cost_usd=0.0,

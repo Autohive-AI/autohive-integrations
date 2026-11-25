@@ -1841,7 +1841,11 @@
                   "description": "Side for the start_line when making a multi-line comment. Usually matches side."
                 }
               },
-              "required": ["path", "line", "body"]
+              "required": [
+                "path",
+                "line",
+                "body"
+              ]
             }
           }
         },
@@ -3650,7 +3654,7 @@
     },
     "search_commits": {
       "display_name": "Search Commits",
-      "description": "Find commits authored by a user across accessible repositories, filtered by date. Only indexed commits on default branches are searchable; use list_user_activity for feature-branch pushes.",
+      "description": "Find indexed default-branch commits authored by a user across accessible repositories, filtered by date. For a specific feature branch, use list_commits with sha and author.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -3854,16 +3858,42 @@
         ]
       }
     },
-    "list_user_activity": {
-      "display_name": "List User Activity",
-      "description": "Find recent pushes (including feature branches), PRs, reviews, and issue activity across repositories without listing every repository. Limited to 300 events / 30 days, with up to 6 hours delay. Private events require authenticating as that user. Optionally expand push commits.",
+    "search_pull_requests": {
+      "display_name": "Search Pull Requests",
+      "description": "Search PRs by author across accessible repositories, with organization, selected repository, state, and date filters. Uses the search index, which may have indexing delays.",
       "input_schema": {
         "type": "object",
         "properties": {
-          "username": {
+          "author": {
             "type": "string",
-            "description": "GitHub username. Omit to use the connected account.",
+            "description": "GitHub PR author username. Omit to use the connected account.",
             "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*(\\[bot\\])?$"
+          },
+          "organization": {
+            "type": "string",
+            "description": "Optional organization scope. If repositories are also supplied, all must belong to this organization.",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*$"
+          },
+          "repositories": {
+            "type": "array",
+            "description": "Optional selected repositories in owner/repo format. Matches any listed repository. Omit or pass an empty array for all accessible repositories in the scope.",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+            },
+            "maxItems": 10,
+            "uniqueItems": true
+          },
+          "state": {
+            "type": "string",
+            "description": "PR state. closed includes merged PRs; merged selects only merged PRs.",
+            "enum": [
+              "all",
+              "open",
+              "closed",
+              "merged"
+            ],
+            "default": "all"
           },
           "since": {
             "type": "string",
@@ -3875,55 +3905,48 @@
             "description": "Inclusive upper bound: ISO 8601 timestamp with timezone, or YYYY-MM-DD covering the whole UTC day.",
             "minLength": 1
           },
-          "organization": {
+          "date_field": {
             "type": "string",
-            "description": "Optional organization to restrict results to.",
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*$"
+            "description": "Timestamp to filter. Independent of sorting. created, updated, closed, or merged.",
+            "enum": [
+              "created",
+              "updated",
+              "closed",
+              "merged"
+            ],
+            "default": "updated"
           },
-          "repository": {
+          "sort": {
             "type": "string",
-            "description": "Optional full repository name: owner/repo.",
-            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+            "description": "Sort by creation time, last update, or comment count.",
+            "enum": [
+              "created",
+              "updated",
+              "comments"
+            ],
+            "default": "updated"
           },
-          "event_types": {
-            "type": "array",
-            "description": "Optional event types, e.g. PushEvent, PullRequestEvent, PullRequestReviewEvent. Filtering happens after fetching.",
-            "items": {
-              "type": "string"
-            },
-            "uniqueItems": true
+          "order": {
+            "type": "string",
+            "description": "Sort direction.",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "default": "desc"
           },
           "page": {
             "type": "integer",
-            "description": "Starting page; pass next_page to continue with the same filters.",
+            "description": "Starting page; pass next_page to continue the same query.",
             "minimum": 1,
-            "maximum": 3,
+            "maximum": 10,
             "default": 1
           },
           "max_pages": {
             "type": "integer",
-            "description": "Maximum pages to scan, 100 events per page. GitHub exposes at most 300 events from the past 30 days.",
+            "description": "Maximum search pages to fetch, 100 PRs per page. At most 1,000 results per query.",
             "minimum": 1,
-            "maximum": 3,
-            "default": 3
-          },
-          "include_commits": {
-            "type": "boolean",
-            "description": "Expand matching pushes by comparing before/head SHAs, including feature branches. Commits may have other authors and earlier dates. Adds bounded API calls.",
-            "default": false
-          },
-          "max_pushes": {
-            "type": "integer",
-            "description": "Maximum push events to expand per call. Remaining pushes have commits_status=budget_exceeded.",
-            "minimum": 1,
-            "maximum": 20,
-            "default": 10
-          },
-          "max_commit_pages": {
-            "type": "integer",
-            "description": "Maximum comparison pages per push, 100 commits per page. Partial expansion is reported on each event.",
-            "minimum": 1,
-            "maximum": 3,
+            "maximum": 10,
             "default": 1
           }
         },
@@ -3932,179 +3955,91 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "username": {
+          "author": {
             "type": "string"
           },
-          "events": {
+          "pull_requests": {
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
-                "id": {
+                "repository": {
                   "type": "string"
                 },
-                "type": {
+                "title": {
+                  "type": "string"
+                },
+                "url": {
                   "type": "string"
                 },
                 "created_at": {
                   "type": "string"
                 },
-                "repository": {
+                "updated_at": {
                   "type": "string"
                 },
-                "actor": {
-                  "type": "string"
+                "number": {
+                  "type": "integer"
                 },
-                "public": {
-                  "type": "boolean"
-                },
-                "payload": {
-                  "type": "object",
-                  "description": "Compact event details, including push ref/before/head and issue/PR/review/comment/release summaries when present. Bodies are limited to 1,000 characters."
-                },
-                "commits": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "sha": {
-                        "type": "string"
-                      },
-                      "author": {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "email": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "date": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          }
-                        }
-                      },
-                      "committer": {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "email": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "date": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          }
-                        }
-                      },
-                      "message": {
-                        "type": "string"
-                      },
-                      "url": {
-                        "type": "string"
-                      },
-                      "repository": {
-                        "type": "string",
-                        "description": "Full repository name, owner/repo."
-                      },
-                      "author_login": {
-                        "type": [
-                          "string",
-                          "null"
-                        ],
-                        "description": "Linked GitHub author, if available. May differ from the pusher."
-                      },
-                      "committer_login": {
-                        "type": [
-                          "string",
-                          "null"
-                        ],
-                        "description": "Linked GitHub committer, if available."
-                      }
-                    },
-                    "required": [
-                      "sha",
-                      "repository",
-                      "message",
-                      "url",
-                      "author",
-                      "committer",
-                      "author_login",
-                      "committer_login"
-                    ]
-                  }
-                },
-                "commits_status": {
-                  "type": "string",
-                  "description": "Complete means the comparison range was retrieved, not that all activity was captured.",
-                  "enum": [
-                    "not_requested",
-                    "complete",
-                    "truncated",
-                    "unavailable",
-                    "budget_exceeded"
+                "author": {
+                  "type": [
+                    "string",
+                    "null"
                   ]
                 },
-                "commits_warning": {
-                  "type": "string"
+                "state": {
+                  "type": "string",
+                  "description": "open or closed. A closed PR may be merged."
+                },
+                "draft": {
+                  "type": "boolean"
+                },
+                "closed_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
               "required": [
-                "id",
-                "type",
-                "created_at",
                 "repository",
-                "actor",
-                "public",
-                "payload",
-                "commits",
-                "commits_status"
+                "title",
+                "url",
+                "created_at",
+                "updated_at",
+                "number",
+                "author",
+                "state",
+                "draft",
+                "closed_at"
               ]
             }
           },
-          "events_scanned": {
+          "query": {
+            "type": "string",
+            "description": "Search query sent to GitHub."
+          },
+          "total_count": {
             "type": "integer",
-            "description": "Number of raw events scanned before applying filters."
+            "description": "Total matching PRs reported by GitHub; at most 1,000 can be retrieved."
           },
           "pages_fetched": {
             "type": "integer"
-          },
-          "oldest_scanned_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Oldest event examined; not a guarantee of complete historical coverage."
           },
           "next_page": {
             "type": [
               "integer",
               "null"
             ],
-            "description": "Next retrievable page, or null. Null does not guarantee complete coverage."
+            "description": "Next retrievable page, or null. Narrow the query when the 1,000-result cap is reached."
           },
           "truncated": {
             "type": "boolean",
-            "description": "More provider pages remain or a full page reached the 300-event cap; matching activity may be hidden by page or provider limits."
+            "description": "More matches exist beyond the pages returned or GitHub search cap."
+          },
+          "incomplete_results": {
+            "type": "boolean",
+            "description": "GitHub timed out before finding all matches. Retry or narrow the query."
           },
           "warnings": {
             "type": "array",
@@ -4115,13 +4050,14 @@
           }
         },
         "required": [
-          "username",
-          "events",
-          "events_scanned",
+          "author",
+          "query",
+          "pull_requests",
+          "total_count",
           "pages_fetched",
-          "oldest_scanned_at",
           "next_page",
           "truncated",
+          "incomplete_results",
           "warnings"
         ]
       }

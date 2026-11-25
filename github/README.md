@@ -288,6 +288,73 @@ Retrieves details of a specific pull request.
 - `pull_request` (object): Pull request details
 - `result` (boolean): Operation success status
 
+#### `search_pull_requests`
+
+Finds PRs authored by a user across accessible repositories using
+[GitHub issue/PR search](https://docs.github.com/en/rest/search/search#search-issues-and-pull-requests)
+with `is:pr`. This retrieves pull requests, not push events, reviews, or an activity timeline.
+
+**Inputs:**
+
+- `author` (string, optional): GitHub PR author username. Defaults to the connected
+  account, requiring one additional request to identify it.
+- `organization` (string, optional): Restrict to an organization.
+- `repositories` (array of strings, optional): Up to 10 unique `owner/repo` names.
+  Matches any listed repository. If an organization is also provided, every
+  selected repository must belong to it. Omit or pass an empty array to search
+  all accessible repositories within the organization scope, or globally if no
+  organization is supplied.
+- `state` (string, optional): `all` (default), `open`, `closed`, or `merged`.
+  Closed includes merged PRs; merged selects only merged PRs.
+- `since`, `until` (strings, optional): Inclusive ISO 8601 bounds. Bare dates cover
+  the whole UTC day; timezone offsets are converted to UTC, and naive timestamps
+  use UTC. Invalid or reversed ranges fail before any request. Search indexes
+  whole seconds: fractional lower bounds round up and upper bounds round down.
+- `date_field` (string, optional): Timestamp to filter: `updated` (default),
+  `created`, `closed`, or `merged`. This filters PR timestamps, not commit or push
+  timestamps. Closed/merged date bounds match only PRs with those timestamps.
+- `sort` (string, optional): `updated` (default), `created`, or `comments`.
+  Independent of `date_field`; there is no merged-time sort in this action.
+- `order` (string, optional): `desc` (default) or `asc`.
+- `page` (integer, optional): Starting page, 1?10 (default: 1).
+- `max_pages` (integer, optional): Pages to fetch, 1?10 (default: 1), up to 100 PRs
+  per page. Maximum requests equal this budget, plus the optional account lookup.
+
+**Outputs:** `author`, generated `query`, `pull_requests`, `total_count`,
+`pages_fetched`, `next_page`, `truncated`, `incomplete_results`, and `warnings`.
+Each PR summary includes repository, number, title, URL, author (nullable), state,
+draft status, and creation/update/closure timestamps. `state` remains `open` or
+`closed`; it does not independently report merge status. Use `get_pull_request`
+when full PR details are needed.
+
+For example, find an author's PRs updated during one New Zealand calendar day:
+
+```json
+{
+  "author": "autohive-integrations-ci",
+  "repositories": [
+    "autohive-integrations-ci/github-integration-fixture-a",
+    "autohive-integrations-ci/github-integration-fixture-b"
+  ],
+  "state": "all",
+  "date_field": "updated",
+  "since": "2026-11-25T00:00:00+13:00",
+  "until": "2026-11-25T23:59:59+13:00"
+}
+```
+
+**Limitations:** This action avoids the Events API dependency but still uses
+GitHub's search index: indexing delays are possible, and results are **not
+promised to be real-time or complete**. Only PRs accessible to the connected
+account are searchable, including authorized private repositories. Search errors
+(such as HTTP 422 for an unsearchable repository) remain errors; they are not
+converted into empty success results. Search has a separate rate limit and a
+1,000-result cap. Use `next_page` with the same filters to continue; narrow the
+query at the cap. `incomplete_results` preserves GitHub's timeout indication, and
+`truncated` reports matches beyond the returned pages/cap. False flags do not
+prove that every recent PR has been indexed. The existing OAuth connection is
+used without additional scopes.
+
 #### `list_pull_requests`
 
 Lists pull requests in a repository.
@@ -352,7 +419,8 @@ committer signatures, and linked GitHub logins (which can be null). Results are
 sorted newest first by `date_field`.
 
 **Limitations:** GitHub searches only indexed commits on the **default branch**;
-unmerged feature-branch commits are excluded. Commit dates are not push dates.
+unmerged feature-branch commits are excluded. Use `list_commits` with `sha` and
+`author` to read a specific branch directly. Commit dates are not push dates.
 Search returns at most 1,000 matches per query and has a separate rate limit
 (normally 30 authenticated requests per minute). Use `next_page` with the same
 filters to continue, or narrow the date range when the search cap is reached.
@@ -370,79 +438,6 @@ For example, find the connected user's commits for one UTC day:
   "organization": "Autohive-AI"
 }
 ```
-
-#### `list_user_activity`
-
-Finds recent pushes, pull requests, reviews, and issue activity across repositories
-using the [user events feed](https://docs.github.com/en/rest/activity/events#list-events-for-the-authenticated-user).
-This is the preferred starting point for daily updates that include feature-branch work.
-
-**Inputs:**
-
-- `username` (string, optional): Defaults to the connected account.
-- `since`, `until`, `organization`, `repository`: Same date and repository filters
-  as `search_commits`, applied to event timestamps after fetching the feed.
-- `event_types` (array of strings, optional): For example, `["PushEvent"]` or
-  `["PullRequestEvent", "PullRequestReviewEvent"]`. Omit or pass an empty array
-  for all event types.
-- `page` (integer, optional): Starting page, 1–3 (default: 1).
-- `max_pages` (integer, optional): Pages to scan, 1–3 (default: 3), at most 100
-  events per page. Scanning follows provider continuation links within the page
-  budget. Dates filter individual events; older events do not end the scan
-  because the feed is not strictly ordered by event timestamp.
-- `include_commits` (boolean, optional): Expand matching push events into compact
-  commit summaries (default: false).
-- `max_pushes` (integer, optional): Push expansion budget, 1–20 (default: 10).
-- `max_commit_pages` (integer, optional): Comparison pages per push, 1–3
-  (default: 1), at most 100 commits per page.
-
-**Outputs:** An object containing `username`, `events`, `events_scanned`,
-`pages_fetched`, `oldest_scanned_at`, `next_page`, `truncated`, and `warnings`.
-Each event includes its ID, type, timestamp, repository, actor, visibility, and
-compact `payload`. PR, issue, review, comment, and release summaries retain useful
-titles/links/state when available; body excerpts are limited to 1,000 characters.
-Push details retain the branch ref and before/head SHAs. Expanded commits use
-the same summary shape as `search_commits`.
-
-Commit expansion compares only each push's before/head range; it does not scan
-repositories or substitute the current branch history. `commits_status` is
-`not_requested`, `complete`, `truncated`, `unavailable`, or `budget_exceeded`.
-`commits_warning`, when present, explains partial expansion. Missing/deleted Git
-objects, new branches without a comparable base, and diverged force-push history
-are reported explicitly. Failure to expand one push preserves the other activity.
-With expansion enabled, the maximum request count is the feed page budget plus
-`max_pushes × max_commit_pages`, plus one account lookup if `username` is omitted.
-
-**Limitations:** GitHub exposes only the latest **300 events within 30 days**,
-and events may be delayed by up to six hours. These limits apply before any
-date, organization, repository, or event-type filter, so older matching activity
-can be inaccessible. Private events require authenticating as the requested user
-with appropriate access. `truncated` flags an unconsumed continuation or a full
-page at the provider's cap; `next_page` permits continuation only within the feed's
-three pages. A null `next_page`, false `truncated`, or empty events array does not
-prove complete activity coverage. `oldest_scanned_at` is informational.
-
-The event actor is the **pusher**, who may push commits authored by other people
-or on earlier days. An agent should retain that distinction when writing an update.
-The same commit may appear in several pushes; use repository plus SHA to deduplicate
-when summarizing commits. `complete` applies only to a push's comparison range.
-See [push payloads](https://docs.github.com/en/rest/using-the-rest-api/github-event-types#pushevent)
-and [commit comparisons](https://docs.github.com/en/rest/commits/commits#compare-two-commits).
-
-For a daily update in New Zealand daylight time, including feature-branch commits:
-
-```json
-{
-  "since": "2026-11-23T00:00:00+13:00",
-  "until": "2026-11-23T23:59:59+13:00",
-  "include_commits": true
-}
-```
-
-Use event titles and commit messages for the initial update. Fetch individual
-commit details with `get_commit` only when a diff is needed. Both new actions use
-the existing OAuth connection and request no additional scopes; access still
-depends on the account and organization authorizations.
 
 #### `get_commit`
 
@@ -937,43 +932,38 @@ Run the read-only suite from the repository root:
 pytest github/tests/test_github_integration.py -m "integration and not destructive"
 ```
 
-Set `GITHUB_ACCESS_TOKEN` and the `GITHUB_TEST_*` variables listed in the root
-`.env.example`. Without a token the suite skips; with a token the two activity
-tests require all fixture settings and fail if expected data is missing.
-The tests only read existing data; prepare fixtures separately:
+Set `GITHUB_ACCESS_TOKEN` and the search fixture variables listed in root
+`.env.example`. TeamCity provides the token through the connected GitHub OAuth
+account; `github/tests/teamcity.env` supplies the fixture settings. The connection
+must belong to `GITHUB_TEST_SEARCH_USERNAME` and be authorized for both private
+fixture repositories. Credentials are never stored in `teamcity.env`.
 
-1. Use a dedicated, low-activity GitHub account and a token belonging to that
-   account. In two distinct public repositories, retain a known commit authored
-   by that account (using an email linked to the account) on each default branch.
-   Set `GITHUB_TEST_ACTIVITY_USERNAME`, `GITHUB_TEST_SEARCH_REPO_A/B` to full
-   `owner/repo` names, and `GITHUB_TEST_SEARCH_SHA_A/B` to the corresponding full
-   commit SHAs. Wait until both commits are indexed. Keep both among the account's
-   newest 100 commits by author date (the test's default sort order) so one
-   unscoped search page contains them.
-2. In a fixture repository, create a feature branch with an existing base commit
-   `B`. Using the dedicated account, push exactly one child commit `H` to that
-   existing branch with a normal fast-forward push. Do not use a branch-creation
-   push or force-push. Preserve both commits and the branch.
-3. Once the push appears in the account's events feed, record its ID in
-   `GITHUB_TEST_PUSH_EVENT_ID`, the full repository name in
-   `GITHUB_TEST_PUSH_REPOSITORY`, the full ref (such as `refs/heads/live-fixture`)
-   in `GITHUB_TEST_PUSH_REF`, and full SHAs `B` and `H` in
-   `GITHUB_TEST_PUSH_BEFORE` and `GITHUB_TEST_PUSH_HEAD`. This must be the newest
-   push in that repository for this account: the test allows only one expansion.
+Without a token the suite skips. With a token, fixture-dependent tests fail if
+required values or expected data are missing. The tests only read existing data;
+prepare the fixtures separately:
 
-Search must return both known repository/SHA pairs. Activity must return the
-recorded event and expand precisely `B...H` into the single commit `H` with
-`commits_status == "complete"`; empty results and unavailable comparisons fail.
-The connected-user activity call deliberately omits `username`, exercising token
-identity resolution as well as expansion.
+1. Use two distinct repositories owned by the dedicated test account. The CI
+   fixtures are private repositories `github-integration-fixture-a` and
+   `github-integration-fixture-b` under `autohive-integrations-ci`. Set
+   `GITHUB_TEST_SEARCH_USERNAME` and `GITHUB_TEST_SEARCH_REPO_A/B` (`owner/repo`).
+2. Retain a known commit authored by this account on each default branch. Set
+   `GITHUB_TEST_SEARCH_SHA_A/B` to the full commit SHAs. Wait for indexing, and
+   keep both among the author's newest 100 searchable commits. Commit search
+   must find both repository/SHA pairs. Its fixture requires only username,
+   repositories, and SHAs; it has no PR-number or push-event dependency.
+3. Keep one open PR authored by this account in each repository. Set
+   `GITHUB_TEST_SEARCH_PR_A/B` to the repository-local PR numbers, not global IDs
+   or URLs. The PR search test omits `author` to verify connected-account lookup
+   and must return both known PRs from the two selected repositories. It requires
+   only username, repositories, and PR numbers; it has no commit-SHA or event
+   dependency. Wait for search indexing before running the read-only suite.
 
-Refresh the push and its metadata before it expires, and whenever a newer push
-in that repository supersedes it. GitHub retains at most 300 events from the past
-30 days, and event publication can take up to six hours. Keep the fixture account
-quiet enough that the event stays within that window. Wait for visibility before
-running tests rather than creating a push during the read-only suite. See
-[GitHub events limits](https://docs.github.com/en/rest/activity/events) and
-[commit search behavior](https://docs.github.com/en/search-github/searching-on-github/searching-commits).
+The `list_commits` author-filter test needs only repository A and SHA A. It reads
+the known commit's author email, verifies matching results, and checks that an
+unrelated email returns no commits.
+
+These search tests validate known indexed data, not instantaneous
+visibility of newly created commits or PRs.
 
 ## Support
 
@@ -983,6 +973,10 @@ For integration issues or questions:
 - Contact Autohive support for platform-related issues
 
 ## Version History
+
+- **2.7.0**
+  - Added cross-repository commit and pull request searches with author, scope, date, and pagination controls
+  - Added optional author filtering to `list_commits`
 
 - **2.6.0**
   - `get_file_content` now handles directory paths, returning a `type` field and an `entries` array instead of failing on GitHub's array response shape

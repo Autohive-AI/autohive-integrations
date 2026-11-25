@@ -2,9 +2,9 @@
 Read-only live integration tests for the GitHub integration.
 
 These tests call the real GitHub API and require a valid OAuth access token in
-the GITHUB_ACCESS_TOKEN environment variable (via .env or export). They never
-run in CI by default: pytest only auto-discovers test_*_unit.py files and the
-default marker filter is -m unit.
+the GITHUB_ACCESS_TOKEN environment variable (via .env or export).
+Default pytest discovery excludes these tests; TeamCity runs the read-only
+live suite with configured credentials and fixtures.
 
 Run manually with:
     pytest github/tests/test_github_integration.py -m integration
@@ -59,31 +59,41 @@ def live_context(env_credentials):
 
 
 @pytest.fixture
-def activity_fixture(live_context, env_credentials):
-    """Require controlled data once credentials are configured; see README setup."""
+def search_repositories_fixture(live_context, env_credentials):
     variables = {
-        "username": "GITHUB_TEST_ACTIVITY_USERNAME",
+        "username": "GITHUB_TEST_SEARCH_USERNAME",
         "repo_a": "GITHUB_TEST_SEARCH_REPO_A",
-        "sha_a": "GITHUB_TEST_SEARCH_SHA_A",
         "repo_b": "GITHUB_TEST_SEARCH_REPO_B",
-        "sha_b": "GITHUB_TEST_SEARCH_SHA_B",
-        "push_repository": "GITHUB_TEST_PUSH_REPOSITORY",
-        "push_event_id": "GITHUB_TEST_PUSH_EVENT_ID",
-        "push_ref": "GITHUB_TEST_PUSH_REF",
-        "push_before": "GITHUB_TEST_PUSH_BEFORE",
-        "push_head": "GITHUB_TEST_PUSH_HEAD",
     }
     values = {key: env_credentials(name) for key, name in variables.items()}
     missing = [name for key, name in variables.items() if not values[key]]
-    assert not missing, f"Configure controlled GitHub activity fixtures (see github/README.md): {', '.join(missing)}"
+    assert not missing, f"Configure GitHub search fixtures (see github/README.md): {', '.join(missing)}"
     assert values["repo_a"].lower() != values["repo_b"].lower(), "Search fixtures must use two distinct repositories"
-    assert values["push_before"] != values["push_head"], "Push fixture must add a commit"
+    return values
+
+
+@pytest.fixture
+def commit_search_fixture(search_repositories_fixture, env_credentials):
+    values = dict(search_repositories_fixture)
+    for key, name in {"sha_a": "GITHUB_TEST_SEARCH_SHA_A", "sha_b": "GITHUB_TEST_SEARCH_SHA_B"}.items():
+        values[key] = env_credentials(name)
+        assert values[key], f"Configure {name} (see github/README.md)"
+    return values
+
+
+@pytest.fixture
+def pull_request_search_fixture(search_repositories_fixture, env_credentials):
+    values = dict(search_repositories_fixture)
+    for key, name in {"pr_a": "GITHUB_TEST_SEARCH_PR_A", "pr_b": "GITHUB_TEST_SEARCH_PR_B"}.items():
+        value = env_credentials(name)
+        assert value and value.isdigit() and int(value) > 0, f"Configure {name} as a positive PR number"
+        values[key] = int(value)
     return values
 
 
 class TestGitHubReadOnlyActions:
-    async def test_search_commits_across_repositories(self, live_context, activity_fixture):
-        fixture = activity_fixture
+    async def test_search_commits_across_repositories(self, live_context, commit_search_fixture):
+        fixture = commit_search_fixture
         result = await github.execute_action(
             "search_commits", {"username": fixture["username"], "max_pages": 1}, live_context
         )
@@ -106,37 +116,26 @@ class TestGitHubReadOnlyActions:
             assert commit["sha"]
             assert commit["url"].startswith("https://github.com/")
 
-    async def test_connected_user_activity_with_bounded_expansion(self, live_context, activity_fixture):
-        fixture = activity_fixture
+    async def test_search_pull_requests_across_private_repositories(self, live_context, pull_request_search_fixture):
+        fixture = pull_request_search_fixture
         result = await github.execute_action(
-            "list_user_activity",
-            {
-                "repository": fixture["push_repository"],
-                "event_types": ["PushEvent"],
-                "max_pages": 3,
-                "include_commits": True,
-                "max_pushes": 1,
-                "max_commit_pages": 1,
-            },
+            "search_pull_requests",
+            {"repositories": [fixture["repo_a"], fixture["repo_b"]], "state": "open", "max_pages": 1},
             live_context,
         )
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["username"].lower() == fixture["username"].lower()
-        assert isinstance(data["events"], list)
-        assert data["events_scanned"] <= 300
-        assert data["warnings"]
-        matches = [event for event in data["events"] if event["id"] == fixture["push_event_id"]]
-        assert len(matches) == 1, "Controlled push missing; refresh the fixture after the event becomes visible"
-        event = matches[0]
-        assert event["type"] == "PushEvent"
-        assert event["repository"].lower() == fixture["push_repository"].lower()
-        assert event["actor"].lower() == fixture["username"].lower()
-        assert event["payload"]["ref"] == fixture["push_ref"]
-        assert event["payload"]["before"] == fixture["push_before"]
-        assert event["payload"]["head"] == fixture["push_head"]
-        assert event["commits_status"] == "complete", event.get("commits_warning", event["commits_status"])
-        assert [commit["sha"] for commit in event["commits"]] == [fixture["push_head"]]
+        assert data["author"].lower() == fixture["username"].lower()
+        assert not data["incomplete_results"]
+        expected = {(fixture["repo_a"].lower(), fixture["pr_a"]), (fixture["repo_b"].lower(), fixture["pr_b"])}
+        found = {(pr["repository"].lower(), pr["number"]) for pr in data["pull_requests"]}
+        assert expected <= found, f"Known cross-repository PRs missing: {expected - found}"
+        assert data["pages_fetched"] == 1
+        for pr in data["pull_requests"]:
+            assert pr["repository"].lower() in {fixture["repo_a"].lower(), fixture["repo_b"].lower()}
+            assert pr["author"].lower() == fixture["username"].lower()
+            assert pr["state"] == "open"
+            assert pr["url"].startswith("https://github.com/")
 
     async def test_get_repository_returns_public_repo(self, live_context):
         result = await github.execute_action(
