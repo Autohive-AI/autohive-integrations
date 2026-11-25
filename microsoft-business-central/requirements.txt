@@ -1,0 +1,2 @@
+autohive-integrations-sdk~=2.1.0
+aiohttp>=3.11,<4  # Direct requests bypass SDK error-body logging; replay guard requires aiohttp 3.x

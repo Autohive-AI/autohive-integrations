@@ -197,6 +197,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 [google-sheets](google-sheets): Connects to Google Sheets and Drive APIs to list accessible spreadsheets, read and write A1 ranges, append rows, apply formatting, freeze panes, run batch updates, and duplicate spreadsheets. Uses Google OAuth2 platform authentication with appropriate scopes for Sheets and Drive.
 
+### Microsoft Dynamics 365 Business Central
+
+[microsoft-business-central](microsoft-business-central): Business Central Online inventory, purchasing, billing and finance integration. Includes 36 actions for purchase order creation and removal, inventory movements, recorded-cost reorder estimates, baseline stock forecasts, client invoices and credits, receivables/payables aging, posted ledger entries, dimensions, trial balance and income statement. Uses platform OAuth with a dedicated Business Central provider.
+
 ### Microsoft Excel
 
 [microsoft-excel](microsoft-excel): Comprehensive integration with Microsoft Excel workbooks stored in OneDrive for Business or SharePoint via Microsoft Graph API. Supports listing and searching Excel workbooks, reading and writing cell ranges using A1 notation, worksheet management (create, delete, list), full table operations (create, read, add/update/delete rows), sorting and filtering data, and applying formatting (font, fill, alignment, number format). Features named range access, used range detection, and support for both workbook-level and worksheet-level table operations. Uses OAuth2 platform authentication with Microsoft 365 and Files.ReadWrite scope. Ideal for automating Excel-based workflows, data extraction, reporting automation, and spreadsheet manipulation.
