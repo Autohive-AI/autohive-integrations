@@ -92,6 +92,52 @@ class TestListCommits:
 
         assert isinstance(result.result.data, list)
         assert result.result.data[0]["sha"] == "abc123def456"
+        assert "author" not in mock_context.fetch.call_args.kwargs["params"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("author", ["octocat", "octocat@github.com"])
+    async def test_author_filter_preserved_across_pages(self, mock_context, author):
+        mock_context.fetch.side_effect = [
+            FetchResponse(status=200, headers={}, data=[SAMPLE_COMMIT] * 100),
+            FetchResponse(status=200, headers={}, data=[SAMPLE_COMMIT]),
+        ]
+
+        result = await github.execute_action(
+            "list_commits",
+            {
+                "owner": "octocat",
+                "repo": "Hello-World",
+                "author": author,
+                "sha": "feature-work",
+                "path": "README.md",
+                "since": "2021-01-01T00:00:00Z",
+                "until": "2021-01-02T00:00:00Z",
+                "max_pages": 2,
+            },
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION
+        assert len(result.result.data) == 101
+        assert mock_context.fetch.call_count == 2
+        for call in mock_context.fetch.call_args_list:
+            assert call.kwargs["params"]["author"] == author
+            assert call.kwargs["params"]["sha"] == "feature-work"
+            assert call.kwargs["params"]["path"] == "README.md"
+            assert call.kwargs["params"]["since"] == "2021-01-01T00:00:00Z"
+            assert call.kwargs["params"]["until"] == "2021-01-02T00:00:00Z"
+
+    @pytest.mark.asyncio
+    async def test_author_without_matching_commits_returns_empty_list(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
+
+        result = await github.execute_action(
+            "list_commits", {"owner": "octocat", "repo": "Hello-World", "author": "another-user"}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data == []
+        assert mock_context.fetch.call_args.kwargs["params"]["author"] == "another-user"
 
     @pytest.mark.asyncio
     async def test_filters_applied_to_params(self, mock_context):

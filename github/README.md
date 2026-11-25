@@ -466,11 +466,17 @@ Lists commits in a repository.
 - `repo` (string, required): Repository name
 - `sha` (string, optional): Branch, tag, or SHA to start from
 - `path` (string, optional): Filter by file path
-- `per_page` (integer, optional): Results per page, 1-100 (default: 30)
+- `author` (string, optional): GitHub username or email address to filter by commit author. Omit to include all authors; the author does not need to be the connected account
+- `since` (string, optional): ISO 8601 timestamp to filter commits after
+- `until` (string, optional): ISO 8601 timestamp to filter commits before
+- `max_pages` (integer, optional): Maximum pages to fetch, with 100 commits per page (default: 10)
 
 **Outputs:**
-- `commits` (array): List of commit objects
-- `result` (boolean): Operation success status
+- An array of commit summaries, including SHA, author, committer, message, and URL
+
+This action reads repository history directly, without using the Events API or
+commit search index. It uses the default branch unless `sha` selects another
+branch, tag, or commit. Author filtering applies within that selected history.
 
 ---
 

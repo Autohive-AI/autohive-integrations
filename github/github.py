@@ -354,6 +354,7 @@ class GitHubAPI:
         since: str = None,
         until: str = None,
         max_pages: int = 10,
+        author: str = None,
     ) -> List[Dict[str, Any]]:
         """Get commits for a repository (bounded by max_pages)"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/commits"
@@ -367,6 +368,8 @@ class GitHubAPI:
             params["since"] = since
         if until:
             params["until"] = until
+        if author:
+            params["author"] = author
 
         return await GitHubAPI.paginated_fetch(context, url, params, max_pages=max_pages)
 
@@ -1582,6 +1585,7 @@ class ListCommits(ActionHandler):
             since=inputs.get("since"),
             until=inputs.get("until"),
             max_pages=inputs.get("max_pages", 10),
+            author=inputs.get("author"),
         )
 
         return ActionResult(

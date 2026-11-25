@@ -159,6 +159,43 @@ class TestGitHubReadOnlyActions:
         assert result.result.data
         assert "sha" in result.result.data[0]
 
+    async def test_list_commits_filters_by_author(self, live_context, env_credentials):
+        repository = env_credentials("GITHUB_TEST_SEARCH_REPO_A")
+        expected_sha = env_credentials("GITHUB_TEST_SEARCH_SHA_A")
+        assert repository and expected_sha, "Configure the repository A fixtures in README.md"
+        owner, repo = repository.split("/", 1)
+
+        known_commit = await github.execute_action(
+            "get_commit", {"owner": owner, "repo": repo, "sha": expected_sha}, live_context
+        )
+        assert known_commit.type == ResultType.ACTION
+        author_email = known_commit.result.data["author"]["email"]
+        assert author_email, "The known fixture commit must have an author email"
+
+        result = await github.execute_action(
+            "list_commits",
+            {"owner": owner, "repo": repo, "sha": expected_sha, "author": author_email, "max_pages": 1},
+            live_context,
+        )
+
+        assert result.type == ResultType.ACTION
+        assert expected_sha in {commit["sha"] for commit in result.result.data}
+        assert all(commit["author"]["email"] == author_email for commit in result.result.data)
+
+        unmatched = await github.execute_action(
+            "list_commits",
+            {
+                "owner": owner,
+                "repo": repo,
+                "sha": expected_sha,
+                "author": "no-matching-author@example.invalid",
+                "max_pages": 1,
+            },
+            live_context,
+        )
+        assert unmatched.type == ResultType.ACTION
+        assert unmatched.result.data == []
+
     async def test_list_issues_returns_issues(self, live_context):
         # Keep this smoke test below the pagination cap as the public repository grows.
         since = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()

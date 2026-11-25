@@ -420,7 +420,7 @@
     },
     "list_commits": {
       "display_name": "List Commits",
-      "description": "List commits for a repository",
+      "description": "List commits for a repository, optionally filtered by author",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -439,6 +439,10 @@
           "path": {
             "type": "string",
             "description": "Only commits containing this file path"
+          },
+          "author": {
+            "type": "string",
+            "description": "GitHub username or email address to filter by commit author. Omit to include all authors."
           },
           "since": {
             "type": "string",
