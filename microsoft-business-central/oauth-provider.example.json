@@ -1,0 +1,12 @@
+{
+  "client_id": "380d67e0-1123-4e55-aeee-539ca0e92f42",
+  "client_secret": "",
+  "client_secret_secret_name": "/integrations/microsoft-business-central/client-secret",
+  "authorization_url": "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize",
+  "token_url": "https://login.microsoftonline.com/organizations/oauth2/v2.0/token",
+  "scopes": [
+    "offline_access",
+    "https://api.businesscentral.dynamics.com/Financials.ReadWrite.All"
+  ],
+  "token_auth_method": "client_secret_post"
+}
