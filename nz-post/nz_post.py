@@ -24,8 +24,8 @@ from autohive_integrations_sdk import (
 nz_post = Integration.load(Path(__file__).with_name("config.json"))
 
 TOKEN_URL = "https://oauth.nzpost.co.nz/as/token.oauth2"  # nosec B105
-API_HOSTS = {"production": "https://api.nzpost.co.nz", "uat": "https://api.uat.nzpost.co.nz"}
-# Cache only tokens, never parcel or address data. Fingerprints isolate rotations and environments.
+API_BASE_URL = "https://api.nzpost.co.nz"
+# Cache only tokens, never parcel or address data. Fingerprints isolate credential rotations.
 _token_cache: dict[str, tuple[str, float]] = {}
 
 
@@ -46,7 +46,7 @@ def _http_error(error: HTTPError, *, token_request: bool = False) -> ActionError
     )
 
 
-async def _get_token(context: ExecutionContext, environment: str) -> str | ActionError:
+async def _get_token(context: ExecutionContext) -> str | ActionError:
     client_id = os.environ.get("NZPOST_CLIENT_ID", "").strip()
     client_secret = os.environ.get("NZPOST_CLIENT_SECRET", "").strip()
     if not client_id or not client_secret:
@@ -54,7 +54,7 @@ async def _get_token(context: ExecutionContext, environment: str) -> str | Actio
             message="NZ Post is not configured. An Autohive administrator must set "
             "NZPOST_CLIENT_ID and NZPOST_CLIENT_SECRET."
         )
-    cache_key = hashlib.sha256(f"{environment}\0{client_id}\0{client_secret}".encode()).hexdigest()
+    cache_key = hashlib.sha256(f"{client_id}\0{client_secret}".encode()).hexdigest()
     cached = _token_cache.get(cache_key)
     if cached and time.monotonic() < cached[1]:
         return cached[0]
@@ -91,16 +91,13 @@ async def _get_token(context: ExecutionContext, environment: str) -> str | Actio
 async def _request(
     context: ExecutionContext, path: str, params: dict[str, Any] | None = None
 ) -> dict[str, Any] | ActionError:
-    environment = os.environ.get("NZPOST_ENVIRONMENT", "").strip().lower() or "production"
-    if environment not in API_HOSTS:
-        return ActionError(message="NZPOST_ENVIRONMENT must be production or uat. Contact your Autohive administrator.")
     for attempt in range(2):
-        token = await _get_token(context, environment)
+        token = await _get_token(context)
         if isinstance(token, ActionError):
             return token
         try:
             response = await context.fetch(
-                f"{API_HOSTS[environment]}{path}",
+                f"{API_BASE_URL}{path}",
                 method="GET",
                 params=params,
                 headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},

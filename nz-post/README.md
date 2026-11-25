@@ -68,12 +68,12 @@ inputs or stored in this repository.
 | --- | --- |
 | `NZPOST_CLIENT_ID` | Required: Autohive's approved NZ Post application client ID |
 | `NZPOST_CLIENT_SECRET` | Required: corresponding application secret |
-| `NZPOST_ENVIRONMENT` | Optional: `production` (default) or `uat`; selects the NZ Post API host |
 
 Tokens are obtained from `https://oauth.nzpost.co.nz/as/token.oauth2` using a
 form-encoded client-credentials request. Tokens are cached in process until
-60 seconds before expiry. Credential rotation or an environment change invalidates
-reuse. A rejected token triggers one renewal and one retry of the lookup.
+60 seconds before expiry. Credential rotation invalidates reuse.
+A rejected token triggers one renewal and one retry of the lookup.
+All API requests use `https://api.nzpost.co.nz`. Production credentials are required.
 No address data is cached. No credentials are returned in action output.
 Missing deployment credentials produce an administrator-facing setup error.
 
@@ -84,8 +84,6 @@ Missing deployment credentials produce an administrator-facing setup error.
    Autohive customers and obtain NZ Post's approval for that use.
 2. Request access to **ParcelAddress** and **NZPost.AddressChecker** for that
    application. Each API needs its own approved access request.
-   Request UAT access from NZ Post API support if needed and follow their supplied
-   environment credential instructions. Do not assume production approval includes UAT.
 3. Place the issued client ID and secret into Autohive's server-side secret/configuration
    system and arrange injection as `NZPOST_CLIENT_ID` and `NZPOST_CLIENT_SECRET` in
    the integration runtime. This repository does not configure platform secret injection.
@@ -99,8 +97,7 @@ Missing deployment credentials produce an administrator-facing setup error.
 All five actions passed live production verification through the real SDK HTTP
 client. The three live tests cover ParcelAddress search/details, AddressChecker
 matching/postal details, and partial-address search. Local credentials are stored
-in the ignored root `.env` with `NZPOST_ENVIRONMENT=production`; deployment still
-requires secure runtime credential injection. UAT access was not established.
+in the ignored root `.env`; deployment still requires secure runtime credential injection.
 Approval for the intended multi-customer use remains a release prerequisite.
 
 ## Limits and scope
@@ -131,8 +128,7 @@ python ../autohive-integrations-tooling/scripts/validate_integration.py nz-post
 python ../autohive-integrations-tooling/scripts/check_code.py nz-post
 ```
 
-For live tests, set `NZPOST_CLIENT_ID`, `NZPOST_CLIENT_SECRET`, optional
-`NZPOST_ENVIRONMENT` in a local root `.env`
+For live tests, set the production `NZPOST_CLIENT_ID` and `NZPOST_CLIENT_SECRET` in a local root `.env`
 (see `.env.example`). Run explicitly:
 
 ```sh

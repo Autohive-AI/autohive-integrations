@@ -23,7 +23,6 @@ def token_response(value="test-access", expires_in=3600):  # nosec B107
 def application_credentials(monkeypatch):
     monkeypatch.setenv("NZPOST_CLIENT_ID", "test-application")
     monkeypatch.setenv("NZPOST_CLIENT_SECRET", "test-application-credential")
-    monkeypatch.delenv("NZPOST_ENVIRONMENT", raising=False)
     _token_cache.clear()
     yield
     _token_cache.clear()
@@ -104,19 +103,6 @@ async def test_missing_shared_configuration(mock_context, monkeypatch, variable)
     mock_context.fetch.assert_not_awaited()
 
 
-async def test_uat_uses_only_documented_host(mock_context, monkeypatch):
-    monkeypatch.setenv("NZPOST_ENVIRONMENT", "uat")
-    mock_context.fetch.side_effect = [token_response(), response({"success": True, "addresses": []})]
-    assert (await lookup(mock_context)).type == ResultType.ACTION
-    assert mock_context.fetch.call_args.args[0].startswith("https://api.uat.nzpost.co.nz/")
-
-
-async def test_invalid_environment_rejected(mock_context, monkeypatch):
-    monkeypatch.setenv("NZPOST_ENVIRONMENT", "https://untrusted.example")
-    assert (await lookup(mock_context)).type == ResultType.ACTION_ERROR
-    mock_context.fetch.assert_not_awaited()
-
-
 async def test_cache_refreshes_before_expiry(mock_context):
     mock_context.fetch.side_effect = [
         token_response(),
@@ -133,7 +119,7 @@ async def test_cache_refreshes_before_expiry(mock_context):
 
 @pytest.mark.parametrize(
     "variable,new_value",
-    [("NZPOST_CLIENT_ID", "rotated-id"), ("NZPOST_CLIENT_SECRET", "rotated-credential"), ("NZPOST_ENVIRONMENT", "uat")],
+    [("NZPOST_CLIENT_ID", "rotated-id"), ("NZPOST_CLIENT_SECRET", "rotated-credential")],
 )
 async def test_cache_isolated_on_configuration_changes(mock_context, monkeypatch, variable, new_value):
     mock_context.fetch.side_effect = [
