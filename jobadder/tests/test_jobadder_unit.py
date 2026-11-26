@@ -41,6 +41,7 @@ class TestConfig:
             "read_user",
             "read_job",
             "write_job",
+            "read_jobad",
             "read_candidate",
             "write_candidate",
             "read_contact",
