@@ -576,6 +576,10 @@ Detach a payment method from a customer.
 
 ## Usage Examples
 
+Run these fragments inside an async function with the registered `stripe` instance from `stripe.py`. Import `ResultType` from `autohive_integrations_sdk`. Your caller must supply an open `ExecutionContext` named `context`, managed with `async with`, using the auth envelope `{"auth_type": "PlatformOauth2", "credentials": {"access_token": supplied_token}}`. Use a Stripe test-mode token or `sk_test_` key for development; don't embed credentials in source.
+
+`execute_action` returns an `IntegrationResult`, not the action payload. Check `ResultType.ACTION` before reading `result.result.data`; handle other result types as failures. See the [SDK calling patterns](https://github.com/autohive-ai/integrations-sdk/blob/release/2.1.0/docs/manual/patterns.md). These examples don't change the SDK pin in [requirements.txt](requirements.txt).
+
 ### Example 1: Create a RUC Invoice
 
 ```python
@@ -593,10 +597,11 @@ invoice = await stripe.execute_action(
     context,
 )
 
-invoice_id = invoice.data["invoice"]["id"]
+assert invoice.type == ResultType.ACTION, invoice.result
+invoice_id = invoice.result.data["invoice"]["id"]
 
 # 2. Add RUC line item ($66.09 x 5 units)
-await stripe.execute_action(
+item_result = await stripe.execute_action(
     "create_invoice_item",
     {
         "customer": "cus_xxxxx",
@@ -608,9 +613,10 @@ await stripe.execute_action(
     },
     context,
 )
+assert item_result.type == ResultType.ACTION, item_result.result
 
 # 3. Add NZTA Fee
-await stripe.execute_action(
+item_result = await stripe.execute_action(
     "create_invoice_item",
     {
         "customer": "cus_xxxxx",
@@ -622,9 +628,10 @@ await stripe.execute_action(
     },
     context,
 )
+assert item_result.type == ResultType.ACTION, item_result.result
 
 # 4. Add BONNET Processing Fee
-await stripe.execute_action(
+item_result = await stripe.execute_action(
     "create_invoice_item",
     {
         "customer": "cus_xxxxx",
@@ -636,6 +643,7 @@ await stripe.execute_action(
     },
     context,
 )
+assert item_result.type == ResultType.ACTION, item_result.result
 
 # Invoice is now ready as draft for review
 ```
@@ -647,35 +655,28 @@ result = await stripe.execute_action(
     "list_invoices", {"customer": "cus_xxxxx", "status": "draft", "limit": 10}, context
 )
 
-for invoice in result.data["invoices"]:
+assert result.type == ResultType.ACTION, result.result
+for invoice in result.result.data["invoices"]:
     print(f"Invoice {invoice['id']}: ${invoice['total'] / 100:.2f}")
 ```
 
 ## Testing
 
-To run the tests:
+Install HiveUp 2.5.4 from a Tooling local build as described in the root [contribution guide](../CONTRIBUTING.md). HiveUp isn't published to PyPI and isolates this integration's existing requirements. From the repository root, run the offline unit tests:
 
-1. Navigate to the integration's directory:
-   ```bash
-   cd stripe
-   ```
+```bash
+hiveup test stripe
+```
 
-2. Set your test API key:
-   ```bash
-   export STRIPE_TEST_API_KEY=sk_test_your_key_here
-   ```
+For optional live tests, prepare a separate local environment with `stripe/requirements.txt` and the repository's test dependencies. Copy the root [.env.example](../.env.example) to an uncommitted `.env` and set `STRIPE_TEST_API_KEY` to a test-mode key. The fixture also accepts `STRIPE_ACCESS_TOKEN`, which takes precedence; unset it unless it belongs to the intended test account.
 
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+Run only the read-only live tests by default, from the repository root in that prepared environment:
 
-4. Run the tests:
-   ```bash
-   python tests/test_stripe.py
-   ```
+```bash
+python -m pytest stripe/tests/test_stripe_integration.py -m "integration and not destructive"
+```
 
-**Note**: Always use test API keys (`sk_test_`) when running tests to avoid creating real charges.
+Use a dedicated test account and test-mode credentials to avoid real charges. Tests marked `destructive` create, update, or delete provider data and require a separate explicit opt-in.
 
 ## API Reference
 

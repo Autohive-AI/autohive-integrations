@@ -2,21 +2,29 @@
 
 Guide for integration authors submitting PRs to this repository.
 
+## SDK baseline
+
+For new integrations and explicit SDK upgrades, use released `autohive-integrations-sdk~=2.1.0` (`>=2.1.0,<2.2.0`). Existing integrations keep their own `requirements.txt`; documentation work and private-to-public moves do not implicitly upgrade them. The SDK's `master` branch tracks 3.x development. Use the [maintained 2.1.0 guides and samples](https://github.com/autohive-ai/integrations-sdk/tree/release/2.1.0) and [canonical SDK skills](https://github.com/autohive-ai/integrations-sdk/tree/release/2.1.0/skills) for released-contract guidance.
+
+Successful SDK 2.x HTTP calls return `FetchResponse`; read its `.data`, `.status`, and `.headers`. Configured auth uses `{"auth_type": "Custom", "credentials": {...}}`, with `auth.fields` describing the inner credentials. SDK 2.0.1 corrected that validation boundary; keep required credential fields. SDK 2.1.0 adds `.headers` to `HTTPError` and `RateLimitError`, not new retries. Match exception-header names case-insensitively and disclose only selected provider values, not the full mapping. See the [HTTP error guidance](https://github.com/autohive-ai/integrations-sdk/blob/release/2.1.0/docs/manual/patterns.md).
+
 ## CI/CD Checks
 
-Every pull request runs two automated workflows:
+Pull requests run integration validation and PR-title checks; a companion workflow posts validation comments from the base repository so fork PRs do not need write permissions.
 
 ### 1. Validate Integration (`validate-integration.yml`)
 
-Uses the [autohive-integrations-tooling](https://github.com/autohive-ai/autohive-integrations-tooling) composite action to validate changed integrations. Runs three checks:
+Uses the [autohive-integrations-tooling](https://github.com/autohive-ai/autohive-integrations-tooling) composite action to validate changed integrations, with each integration's dependencies isolated. Its five result groups are:
 
 | Check | What It Does |
 |-------|-------------|
 | **Structure** | Folder name, required files, `config.json` schema, `__init__.py`, `requirements.txt`, `tests/`, icon size, unused scopes |
 | **Code** | `pip install`, Python syntax, import resolution, JSON validity, ruff lint, ruff format, bandit security scan, pip-audit, config-code sync |
+| **Tests** | Discovers canonical `test_*_unit.py` files and runs mocked unit tests with coverage; live tests are excluded |
 | **README** | Verifies the main `README.md` was updated when a new integration is added |
+| **Version** | Checks integration version changes against the PR base; documentation-only changes do not require a version bump |
 
-Results are posted as a sticky PR comment with a summary table:
+The Code group also checks SDK fetch-response usage. Structure/schema and fetch checks are bounded checks, not proof of every runtime contract. Review skipped checks and warnings as well as failures. Results are posted as a sticky PR comment with a summary table:
 
 - ✅ **Passed** — all checks passed
 - ⚠️ **Passed with warnings** — no errors, but issues to review
@@ -43,45 +51,35 @@ docs: update Netlify README with auth setup
 
 ## Local Validation
 
-You can run the same checks locally before pushing. Install the tooling repo and run:
+Install the Python **HiveUp** CLI with Python 3.13+ using the [Tooling local-build instructions](https://github.com/autohive-ai/autohive-integrations-tooling#install-hiveup-from-a-local-build). HiveUp is not published to PyPI. Installing only Tooling's development dependencies does not install the CLI. The legacy scripts and .NET CLI are compatibility paths, not the default workflow.
 
-Clone both repos side by side:
-
-```
-parent-dir/
-├── autohive-integrations-tooling/
-└── autohive-integrations/
-```
-
-Set up a Python 3.13+ environment in the tooling repo and install dev dependencies. For example, using [uv](https://docs.astral.sh/uv/):
+From this repository root:
 
 ```bash
-cd autohive-integrations-tooling
-uv python install 3.13
-uv venv --python 3.13
-source .venv/bin/activate
-uv pip install -r requirements-dev.txt
+hiveup --version
+hiveup validate --base-ref <base-ref> my-integration
+hiveup test my-integration
 ```
 
-Any other Python environment manager (venv, pyenv, conda, etc.) works too — just ensure Python 3.13+ and the packages from `requirements-dev.txt` are installed.
+Replace `<base-ref>` with the actual fetched PR target ref, such as `origin/master` for a PR targeting this repository's `master`. A supplied ref must resolve locally. `validate` includes unit tests; `test` is the focused unit-test command. For non-PR work, omit `--base-ref` and report that history-aware README/version checks were skipped.
 
-Then run the checks from the integrations repo root:
+For changed integrations or a focused check:
 
 ```bash
-cd ../autohive-integrations
-python ../autohive-integrations-tooling/scripts/validate_integration.py my-integration
-python ../autohive-integrations-tooling/scripts/check_code.py my-integration
+hiveup validate --changed --base-ref <base-ref>
+hiveup check fetch my-integration
 ```
+
+HiveUp prepares isolated environments from each integration's existing `requirements.txt`. A successful exit can include warnings or skipped tests, so inspect the actual test counts and skipped checks. Do not install all integrations into one shared environment to validate them.
 
 ### Quick fixes
 
 ```bash
-# Auto-fix lint issues
-ruff check --fix my-integration
-
-# Auto-format code
-ruff format my-integration
+hiveup validate --only lint,format --fix my-integration
+hiveup validate --base-ref <base-ref> my-integration
 ```
+
+HiveUp uses its bundled CI Ruff configuration. If using standalone Ruff with a sibling Tooling checkout, pass `--config ../autohive-integrations-tooling/ruff.toml` to both lint and format.
 
 ## Running Tests
 
@@ -96,7 +94,7 @@ Unit tests and integration tests are **run separately** — they use different f
 | **Needs credentials** | No (fully mocked) | Yes (real API calls) |
 | **Default `pytest`** | ✅ Selected by `-m unit` in `addopts` | ❌ Excluded by `-m unit` in `addopts` |
 
-Tests use [pytest](https://docs.pytest.org/) and run from the repo root. They use the same Python environment as the tooling (see [Local Validation](#local-validation) above).
+Tests use [pytest](https://docs.pytest.org/) and run from the repo root. Prefer `hiveup test <integration>` for isolated unit tests. Direct pytest and live tests need a separately prepared environment with that integration's pinned requirements, as below; the CLI's own environment is not a shared integration environment.
 
 ### Prerequisites
 
@@ -109,7 +107,7 @@ source .venv/bin/activate
 uv pip install -r requirements-test.txt
 ```
 
-Each integration pins its own SDK version in its `requirements.txt`. Install the dependencies for the integration(s) you want to test:
+Each integration pins its own SDK version in its `requirements.txt`. Install the dependencies for the integration you want to test:
 
 ```bash
 uv pip install -r hackernews/requirements.txt
@@ -129,30 +127,15 @@ pip install -r hackernews/requirements.txt
 Unit tests are mocked — no API credentials or network access needed. They are auto-discovered by pytest from `test_*_unit.py` files.
 
 ```bash
-# Run unit tests for a single integration
-pytest hackernews/
+# Run isolated unit tests, using each integration's own requirements
+hiveup test hackernews
+hiveup test bitly notion
 
-# Run a specific test file
-pytest hackernews/tests/test_hackernews_unit.py
-
-# Run all unit tests (only if all integrations share the same SDK version)
-pytest
-
-# Verbose output
-pytest hackernews/ -v
+# Run a specific file in the prepared hackernews environment
+python -m pytest hackernews/tests/test_hackernews_unit.py -v
 ```
 
-If integrations pin different SDK versions, run them separately to ensure each uses its own pinned version:
-
-```bash
-uv pip install -r bitly/requirements.txt
-pytest bitly/
-
-uv pip install -r notion/requirements.txt
-pytest notion/
-```
-
-The default `pytest` command only runs tests marked `unit` (configured in `pyproject.toml`).
+The default `pytest` command only runs tests marked `unit` (configured in `pyproject.toml`). Avoid a repository-wide direct pytest run unless all selected integrations' dependencies are compatible; sharing an SDK range alone is not sufficient. HiveUp warns and skips integrations without canonical unit files; a zero exit code is not evidence that those tests ran.
 
 ### Running integration tests
 
@@ -165,34 +148,30 @@ cp .env.example .env
 # Edit .env and add your test credentials
 ```
 
-Then run by passing the file path directly with `-m integration`:
+With Perplexity's existing requirements and the repository test dependencies installed, pass the file path and exclude destructive tests by default:
 
 ```bash
 # Run integration tests for one integration
-pytest perplexity/tests/test_perplexity_integration.py -m integration
+python -m pytest perplexity/tests/test_perplexity_integration.py -m "integration and not destructive"
 ```
 
 > **Why the explicit file path?** `pyproject.toml` restricts `python_files` to `test_*_unit.py`, so `pytest -m integration perplexity/` will **not** discover `test_*_integration.py` files. You must name the file directly.
 
-To run both unit and integration tests together:
+To run both unit and read-only integration tests together in that prepared environment:
 
 ```bash
-pytest perplexity/tests/test_perplexity_unit.py perplexity/tests/test_perplexity_integration.py -m "unit or integration"
+python -m pytest perplexity/tests/test_perplexity_unit.py perplexity/tests/test_perplexity_integration.py -m "(unit or integration) and not destructive"
 ```
 
-Integration tests will `pytest.skip()` if the required environment variables are missing.
+Integration tests should `pytest.skip()` when required credentials are missing. Run destructive tests only deliberately against a dedicated test account, with an explicit file and `-m "integration and destructive"`. Keep secrets in an uncommitted `.env`, not tracked test files. Add blank entries for every credential or optional test-resource environment variable to root `.env.example` when adding or changing live tests.
 
 ### Coverage
 
+`hiveup test <integration>` includes coverage in the integration's isolated environment. For a targeted direct run, use the prepared environment for that integration:
+
 ```bash
 # Coverage for a single integration (unit tests only)
-pytest --cov=hackernews hackernews/
-
-# Coverage for multiple integrations
-pytest --cov=hackernews --cov=bitly hackernews/ bitly/
-
-# All tested integrations with line-level detail
-pytest --cov=hackernews --cov=bitly --cov=nzbn --cov=notion --cov=shopify-customer
+python -m pytest --cov=hackernews --cov-report=term-missing hackernews/
 ```
 
 Coverage is configured in `pyproject.toml` to exclude test files — only integration source code is measured.
@@ -204,34 +183,28 @@ Coverage is configured in `pyproject.toml` to exclude test files — only integr
 Unit test files go in `<integration>/tests/test_<name>_unit.py`. This naming is required for auto-discovery.
 
 ```python
-import os
-import sys
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies")))
-
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from autohive_integrations_sdk import FetchResponse, ResultType
 
-from my_integration.my_integration import my_integration
+from my_integration import my_integration
 
 pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def mock_context():
-    ctx = MagicMock(name="ExecutionContext")
-    ctx.fetch = AsyncMock(name="fetch")
-    ctx.auth = {"credentials": {"api_key": "test_key"}}
-    return ctx
+def mock_context(make_context):
+    return make_context(auth={"auth_type": "Custom", "credentials": {"api_key": "test_key"}})
 
 
 class TestMyAction:
     async def test_success(self, mock_context):
-        mock_context.fetch.return_value = {"data": "value"}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"data": "value"})
         result = await my_integration.execute_action("my_action", {"input": "x"}, mock_context)
+        assert result.type == ResultType.ACTION
         assert result.result.data["data"] == "value"
 ```
+
+Adapt the action, inputs, output body, and credential names to `config.json`. This example assumes a required custom `api_key`; `auth.fields` validates the inner credentials, not the envelope. Pair it with a missing-required-credential test asserting `VALIDATION_ERROR`, `result.result["source"] == "auth"`, and `ctx.fetch.assert_not_awaited()`. For HTTP failures, use `HTTPError` or `RateLimitError` as the mock's `side_effect`, not a successful `FetchResponse` with an error status.
 
 #### Integration tests (optional)
 
@@ -239,38 +212,49 @@ Integration test files go in `<integration>/tests/test_<name>_integration.py`. T
 
 ```python
 import pytest
+import pytest_asyncio
+from autohive_integrations_sdk import ExecutionContext, ResultType
+
+from my_integration import my_integration
 
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture
-def live_context():
-    api_key = os.environ.get("MY_API_KEY", "")
+@pytest_asyncio.fixture
+async def live_context(env_credentials):
+    api_key = env_credentials("MY_API_KEY")
     if not api_key:
         pytest.skip("MY_API_KEY not set")
-    # ... set up context with real credentials ...
+    auth = {"auth_type": "Custom", "credentials": {"api_key": api_key}}
+    async with ExecutionContext(auth=auth) as context:
+        yield context
 
 
 class TestMyAction:
     async def test_real_api_call(self, live_context):
         result = await my_integration.execute_action("my_action", {"input": "x"}, live_context)
+        assert result.type == ResultType.ACTION
         assert "data" in result.result.data
 ```
+
+The real SDK context preserves HTTP errors, response parsing, OAuth injection, and session cleanup. `make_context` is a mock factory, not a live transport. Use `{}` for no auth, or `{"auth_type": "PlatformOauth2", "credentials": {"access_token": token}}` for platform OAuth, and adapt credential keys to the integration's config.
 
 #### Shared conventions
 
 - Use `pytestmark = pytest.mark.unit` at module level for mocked tests
 - Use `pytestmark = pytest.mark.integration` for tests that hit real APIs
-- Mock `context.fetch` return values to simulate API responses
+- Mock successful SDK 2.x fetches with `FetchResponse`; inspect the integration's pinned contract for SDK 1.x
 - Test both success and error paths
 - Also add a `conftest.py` in the integration's `tests/` dir:
 
 ```python
 import sys
-import os
+from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 ```
+
+Keep the integration-root `__init__.py` empty, except where an existing layout intentionally requires otherwise. When copying the standalone SDK sample into this repository, omit its local `pytest.ini`: inherit root `pyproject.toml` so shared `make_context` and `env_credentials` fixtures remain discoverable. See the [unit-test skill](https://github.com/autohive-ai/integrations-sdk/blob/release/2.1.0/skills/writing-unit-tests/SKILL.md) and [live-test skill](https://github.com/autohive-ai/integrations-sdk/blob/release/2.1.0/skills/writing-integration-tests/SKILL.md) for full conventions.
 
 ### Test markers
 
@@ -278,18 +262,19 @@ sys.path.insert(0, os.path.dirname(__file__))
 |--------|---------|-------------------|-------------|-----------------|
 | `unit` | Mocked tests, no network | No | Yes | Yes (`test_*_unit.py`) |
 | `integration` | Real API calls | Yes (via `.env`) | No | No (explicit file path) |
+| `destructive` | Live tests that create, update, or delete data; explicit opt-in | Yes (dedicated test account) | No | No (explicit file path and marker filter) |
 
 ## SDK Upgrades
 
-When upgrading an integration to a new SDK major version, the SDK repo provides agent skills to automate the migration. See the [skills directory](https://github.com/autohive-ai/integrations-sdk/tree/master/skills) in the SDK repo for setup instructions and available skills.
+For an explicitly scoped SDK upgrade, use the SDK's [upgrade skill](https://github.com/autohive-ai/integrations-sdk/blob/release/2.1.0/skills/upgrading-sdk-v2/SKILL.md). The [skills directory](https://github.com/autohive-ai/integrations-sdk/tree/release/2.1.0/skills) contains setup instructions and the canonical build, test, migration, and review guidance. Do not change an existing pin just to reconcile README prose.
 
 ## Integration Structure
 
-See the SDK's [Integration Structure Reference](https://github.com/autohive-ai/integrations-sdk/blob/master/docs/manual/integration_structure.md) for directory layouts, required files, and the full `config.json` schema. The [Building Your First Integration](https://github.com/autohive-ai/integrations-sdk/blob/master/docs/manual/building_your_first_integration.md) tutorial covers the development workflow end-to-end, and [samples/template/](https://github.com/autohive-ai/integrations-sdk/tree/master/samples/template) provides a ready-to-copy starter.
+See the SDK's [Integration Structure Reference](https://github.com/autohive-ai/integrations-sdk/blob/release/2.1.0/docs/manual/integration_structure.md) for directory layouts, required files, and the full `config.json` schema. The [Building Your First Integration](https://github.com/autohive-ai/integrations-sdk/blob/release/2.1.0/docs/manual/building_your_first_integration.md) tutorial covers the development workflow end-to-end, and [samples/template/](https://github.com/autohive-ai/integrations-sdk/tree/release/2.1.0/samples/template) provides a starter.
 
 ## Pull Request Process
 
-1. **Create a branch** following conventional naming (`feat/my-integration`)
+1. **Create a branch** following `<type>/<issue-number>/<short-description>` (for example, `feat/42/my-integration`)
 2. **Add your integration** following the structure in the SDK docs
 3. **Read and follow the [Integration Engineering Charter](integration-engineering-charter.md)**
 4. **Run validation locally** before pushing
@@ -313,9 +298,10 @@ Each push gets its own packaging run so rapid merges do not replace pending
 release jobs. If packaging fails, rerun the failed workflow run for that merge.
 The next merge packages only the versions changed by that next push; it does not
 create or require a full bootstrap release.
-Both pull-request validation and release packaging use the immutable HiveUp
-`2.5.0` tag, so the tooling release must exist before this workflow change is
-merged.
+Pull-request validation uses the floating Tooling action `@v2`; release
+packaging checks out the same floating `v2` ref. These are not immutable
+`2.5.0` pins. See the workflow files for the configured refs and the
+[Tooling versioning policy](https://github.com/autohive-ai/autohive-integrations-tooling#versioning).
 
 Runtime dependency changes, including SDK updates in `requirements.txt`, alter
 the deployable ZIP and therefore require a matching `config.json` version bump.

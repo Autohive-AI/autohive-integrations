@@ -202,12 +202,13 @@ Returns subscription information including character quota and usage.
 
 ## Testing
 
-To test the integration:
+Install HiveUp using the [contributor setup](../CONTRIBUTING.md#local-validation), then run mocked unit tests from the repository root:
 
-1. Navigate to the integration directory: `cd elevenlabs`
-2. Install dependencies: `pip install -r requirements.txt`
-3. Update test credentials in `tests/test_elevenlabs.py`
-4. Run tests: `python tests/test_elevenlabs.py`
+```bash
+hiveup test elevenlabs
+```
+
+Unit tests do not need credentials or consume credits. Optional live tests use real API calls and can incur charges; follow the [live-test setup](../CONTRIBUTING.md#running-integration-tests), review the selected tests, and keep credentials in an uncommitted `.env`, not tracked test files.
 
 ## Common Use Cases
 

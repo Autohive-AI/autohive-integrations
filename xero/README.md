@@ -64,210 +64,242 @@ The integration requires these OAuth scopes:
 
 ## Usage Examples
 
+Run these fragments inside an async function. `integration` must be the registered `xero` instance from `xero.py`; import `ResultType` from `autohive_integrations_sdk`. Your caller must supply an open `ExecutionContext` named `context`, managed with `async with`, using `{"auth_type": "PlatformOauth2", "credentials": {"access_token": supplied_token}}`. Complete OAuth first; an empty auth dictionary doesn't obtain tokens. Replace placeholder tenant, contact, and invoice IDs with IDs from your test organization. Write examples create or change real accounting data.
+
+`execute_action` returns an `IntegrationResult`. Check `ResultType.ACTION` before reading `result.result.data`; handle other result types as failures. Successful payloads aren't guaranteed to include a `success` key. Reports and most accounting actions return raw Xero payloads, including case-sensitive keys such as `Reports` and `Invoices`. See the [SDK calling patterns](https://github.com/autohive-ai/integrations-sdk/blob/release/2.1.0/docs/manual/patterns.md). These examples don't change the SDK pin in [requirements.txt](requirements.txt).
+
 ### Get Available Connections
 ```python
 # Get all available tenant connections
-result = await integration.execute_action("get_available_connections", {})
+result = await integration.execute_action("get_available_connections", {}, context)
 
-if result['success']:
-    for company in result['companies']:
-        print(f"Tenant ID: {company['tenant_id']}")
-        print(f"Company Name: {company['company_name']}")
+assert result.type == ResultType.ACTION, result.result
+for company in result.result.data["companies"]:
+    print(f"Tenant ID: {company['tenant_id']}")
+    print(f"Company Name: {company['company_name']}")
 ```
 
 ### Find Contact
 ```python
 # Search for contacts by name using tenant ID
-result = await integration.execute_action("find_contact_by_name", {
-    "tenant_id": "tenant-guid-123",
-    "contact_name": "ABC Suppliers"
-})
+result = await integration.execute_action(
+    "find_contact_by_name", {"tenant_id": "tenant-guid-123", "contact_name": "ABC Suppliers"}, context
+)
 
-for contact in result["contacts"]:
+assert result.type == ResultType.ACTION, result.result
+for contact in result.result.data["contacts"]:
     print(f"Contact: {contact['name']} (ID: {contact['contact_id']})")
 ```
 
 ### Get Aged Payables Report
 ```python
 # Get aged payables for a specific contact using tenant ID
-result = await integration.execute_action("get_aged_payables", {
-    "tenant_id": "tenant-guid-123",
-    "contact_id": "contact-guid-456",
-    "date": "2025-01-31"
-})
+result = await integration.execute_action(
+    "get_aged_payables",
+    {"tenant_id": "tenant-guid-123", "contact_id": "contact-guid-456", "date": "2025-01-31"},
+    context,
+)
 
-for report in result["reports"]:
-    print(f"Report: {report['report_name']} - {report['report_date']}")
+assert result.type == ResultType.ACTION, result.result
+for report in result.result.data["Reports"]:
+    print(f"Report: {report['ReportName']} - {report['ReportDate']}")
 ```
 
 ### Get Invoices
 ```python
 # Get all authorized invoices for a specific date range using tenant ID
-result = await integration.execute_action("get_invoices", {
-    "tenant_id": "tenant-guid-123",
-    "where": "Status==\"AUTHORISED\" AND Date>=DateTime(2025,01,01)",
-    "order": "Date DESC",
-    "pageSize": 50
-})
+result = await integration.execute_action(
+    "get_invoices",
+    {
+        "tenant_id": "tenant-guid-123",
+        "where": 'Status=="AUTHORISED" AND Date>=DateTime(2025,01,01)',
+        "order": "Date DESC",
+        "pageSize": 50,
+    },
+    context,
+)
 
-for invoice in result["Invoices"]:
+assert result.type == ResultType.ACTION, result.result
+for invoice in result.result.data["Invoices"]:
     print(f"Invoice: {invoice['InvoiceNumber']} - {invoice['Total']} - {invoice['Contact']['Name']}")
 
 # Get a specific invoice by ID
-result = await integration.execute_action("get_invoices", {
-    "tenant_id": "tenant-guid-123",
-    "invoice_id": "243216c5-369e-4056-ac67-05388f86dc81"
-})
+result = await integration.execute_action(
+    "get_invoices", {"tenant_id": "tenant-guid-123", "invoice_id": "243216c5-369e-4056-ac67-05388f86dc81"}, context
+)
 
-invoice = result["Invoices"][0]
+assert result.type == ResultType.ACTION, result.result
+invoice = result.result.data["Invoices"][0]
 print(f"Invoice Details: {invoice['InvoiceNumber']} - Status: {invoice['Status']}")
 ```
 
 ### Get Invoice as PDF
 ```python
 # Download a specific invoice as PDF using tenant ID and invoice ID
-result = await integration.execute_action("get_invoice_pdf", {
-    "tenant_id": "tenant-guid-123",
-    "invoice_id": "243216c5-369e-4056-ac67-05388f86dc81"
-})
+result = await integration.execute_action(
+    "get_invoice_pdf", {"tenant_id": "tenant-guid-123", "invoice_id": "243216c5-369e-4056-ac67-05388f86dc81"}, context
+)
 
-if result["success"]:
-    pdf_file = result["file"]
-    print(f"Downloaded PDF: {pdf_file['name']}")
-    print(f"Content Type: {pdf_file['contentType']}")
+assert result.type == ResultType.ACTION, result.result
+pdf_file = result.result.data["file"]
+print(f"Downloaded PDF: {pdf_file['name']}")
+print(f"Content Type: {pdf_file['contentType']}")
 
-    # Save the PDF to disk
-    import base64
-    pdf_bytes = base64.b64decode(pdf_file['content'])
-    with open(pdf_file['name'], 'wb') as f:
-        f.write(pdf_bytes)
-    print(f"Saved to {pdf_file['name']}")
+# Save the PDF to disk
+import base64
+
+pdf_bytes = base64.b64decode(pdf_file["content"])
+with open(pdf_file["name"], "wb") as f:
+    f.write(pdf_bytes)
+print(f"Saved to {pdf_file['name']}")
 
 # Example: Download multiple overdue invoices as PDFs
-overdue_result = await integration.execute_action("get_invoices", {
-    "tenant_id": "tenant-guid-123",
-    "where": "Status==\"AUTHORISED\" AND DueDate<DateTime.Today",
-    "pageSize": 10
-})
+overdue_result = await integration.execute_action(
+    "get_invoices",
+    {"tenant_id": "tenant-guid-123", "where": 'Status=="AUTHORISED" AND DueDate<DateTime.Today', "pageSize": 10},
+    context,
+)
 
-for invoice in overdue_result["Invoices"]:
-    pdf_result = await integration.execute_action("get_invoice_pdf", {
-        "tenant_id": "tenant-guid-123",
-        "invoice_id": invoice["InvoiceID"]
-    })
-    if pdf_result["success"]:
-        print(f"Downloaded PDF for invoice {invoice['InvoiceNumber']}")
+assert overdue_result.type == ResultType.ACTION, overdue_result.result
+for invoice in overdue_result.result.data["Invoices"]:
+    pdf_result = await integration.execute_action(
+        "get_invoice_pdf", {"tenant_id": "tenant-guid-123", "invoice_id": invoice["InvoiceID"]}, context
+    )
+    assert pdf_result.type == ResultType.ACTION, pdf_result.result
+    print(f"Downloaded PDF for invoice {invoice['InvoiceNumber']}")
 ```
 
 ### Get Balance Sheet
 ```python
 # Get current balance sheet with 3-month comparison using tenant ID
-result = await integration.execute_action("get_balance_sheet", {
-    "tenant_id": "tenant-guid-123",
-    "date": "2025-01-31",
-    "periods": 3
-})
+result = await integration.execute_action(
+    "get_balance_sheet", {"tenant_id": "tenant-guid-123", "date": "2025-01-31", "periods": 3}, context
+)
 
-for report in result["reports"]:
-    print(f"Balance Sheet as of {report['report_date']}")
+assert result.type == ResultType.ACTION, result.result
+for report in result.result.data["Reports"]:
+    print(f"Balance Sheet as of {report['ReportDate']}")
 ```
 
 ### Get Profit & Loss Statement
 ```python
 # Get P&L for specific date range using tenant ID
-result = await integration.execute_action("get_profit_and_loss", {
-    "tenant_id": "tenant-guid-123",
-    "from_date": "2025-01-01",
-    "to_date": "2025-01-31",
-    "timeframe": "MONTH",
-    "periods": 3
-})
+result = await integration.execute_action(
+    "get_profit_and_loss",
+    {
+        "tenant_id": "tenant-guid-123",
+        "from_date": "2025-01-01",
+        "to_date": "2025-01-31",
+        "timeframe": "MONTH",
+        "periods": 3,
+    },
+    context,
+)
 
-for report in result["reports"]:
-    print(f"P&L Report: {report['report_name']}")
+assert result.type == ResultType.ACTION, result.result
+for report in result.result.data["Reports"]:
+    print(f"P&L Report: {report['ReportName']}")
 ```
 
 ### Get Accounts
 ```python
 # Get chart of accounts for line item classification using tenant ID
-result = await integration.execute_action("get_accounts", {
-    "tenant_id": "tenant-guid-123",
-    "where": "Status==\"ACTIVE\"",
-    "order": "Code ASC"
-})
+result = await integration.execute_action(
+    "get_accounts", {"tenant_id": "tenant-guid-123", "where": 'Status=="ACTIVE"', "order": "Code ASC"}, context
+)
 
-for account in result["Accounts"]:
+assert result.type == ResultType.ACTION, result.result
+for account in result.result.data["Accounts"]:
     print(f"Account: {account['Name']} ({account['Code']}) - Type: {account['Type']}")
 ```
 
 ### Get Payments
 ```python
 # Get payment records with date filtering using tenant ID
-result = await integration.execute_action("get_payments", {
-    "tenant_id": "tenant-guid-123",
-    "where": "Date>=DateTime(2025,01,01) AND Date<=DateTime(2025,01,31)",
-    "order": "Date DESC"
-})
+result = await integration.execute_action(
+    "get_payments",
+    {
+        "tenant_id": "tenant-guid-123",
+        "where": "Date>=DateTime(2025,01,01) AND Date<=DateTime(2025,01,31)",
+        "order": "Date DESC",
+    },
+    context,
+)
 
-for payment in result["Payments"]:
+assert result.type == ResultType.ACTION, result.result
+for payment in result.result.data["Payments"]:
     print(f"Payment: {payment['Amount']} on {payment['Date']} - Status: {payment['Status']}")
 ```
 
 ### Get Bank Transactions
 ```python
 # Get bank transactions not tied to invoices using tenant ID
-result = await integration.execute_action("get_bank_transactions", {
-    "tenant_id": "tenant-guid-123",
-    "where": "Date>=DateTime(2025,01,01)",
-    "order": "Date DESC",
-    "page": 1
-})
+result = await integration.execute_action(
+    "get_bank_transactions",
+    {"tenant_id": "tenant-guid-123", "where": "Date>=DateTime(2025,01,01)", "order": "Date DESC", "page": 1},
+    context,
+)
 
-for transaction in result["BankTransactions"]:
+assert result.type == ResultType.ACTION, result.result
+for transaction in result.result.data["BankTransactions"]:
     print(f"Transaction: {transaction['Total']} - {transaction['Reference']}")
 ```
 
 ### Create Sales Invoice
 ```python
 # Create a new sales invoice using tenant ID
-result = await integration.execute_action("create_sales_invoice", {
-    "tenant_id": "tenant-guid-123",
-    "contact": {"ContactID": "contact-guid-456"},
-    "line_items": [{
-        "Description": "Consulting Services",
-        "Quantity": 5,
-        "UnitAmount": 150.00,
-        "AccountCode": "200",
-        "TaxType": "OUTPUT"
-    }],
-    "date": "2025-01-31",
-    "due_date": "2025-02-28",
-    "status": "DRAFT"
-})
+result = await integration.execute_action(
+    "create_sales_invoice",
+    {
+        "tenant_id": "tenant-guid-123",
+        "contact": {"ContactID": "contact-guid-456"},
+        "line_items": [
+            {
+                "Description": "Consulting Services",
+                "Quantity": 5,
+                "UnitAmount": 150.00,
+                "AccountCode": "200",
+                "TaxType": "OUTPUT",
+            }
+        ],
+        "date": "2025-01-31",
+        "due_date": "2025-02-28",
+        "status": "DRAFT",
+    },
+    context,
+)
 
-invoice = result["Invoices"][0]
+assert result.type == ResultType.ACTION, result.result
+invoice = result.result.data["Invoices"][0]
 print(f"Created Invoice: {invoice['InvoiceNumber']} - Total: {invoice['Total']}")
 ```
 
 ### Create Purchase Bill
 ```python
 # Create a new purchase bill using tenant ID
-result = await integration.execute_action("create_purchase_bill", {
-    "tenant_id": "tenant-guid-123",
-    "contact": {"ContactID": "supplier-guid-789"},
-    "line_items": [{
-        "Description": "Office Supplies",
-        "Quantity": 1,
-        "UnitAmount": 250.00,
-        "AccountCode": "400",
-        "TaxType": "INPUT"
-    }],
-    "date": "2025-01-31",
-    "invoice_number": "SUPP-001",
-    "status": "AUTHORISED"
-})
+result = await integration.execute_action(
+    "create_purchase_bill",
+    {
+        "tenant_id": "tenant-guid-123",
+        "contact": {"ContactID": "supplier-guid-789"},
+        "line_items": [
+            {
+                "Description": "Office Supplies",
+                "Quantity": 1,
+                "UnitAmount": 250.00,
+                "AccountCode": "400",
+                "TaxType": "INPUT",
+            }
+        ],
+        "date": "2025-01-31",
+        "invoice_number": "SUPP-001",
+        "status": "AUTHORISED",
+    },
+    context,
+)
 
-bill = result["Invoices"][0]
+assert result.type == ResultType.ACTION, result.result
+bill = result.result.data["Invoices"][0]
 print(f"Created Bill: {bill['InvoiceNumber']} - Total: {bill['Total']}")
 ```
 
@@ -278,155 +310,196 @@ import base64
 
 # Read file and encode to base64
 with open("receipt.pdf", "rb") as f:
-    file_content = base64.b64encode(f.read()).decode('utf-8')
+    file_content = base64.b64encode(f.read()).decode("utf-8")
 
-result = await integration.execute_action("attach_file_to_invoice", {
-    "tenant_id": "tenant-guid-123",
-    "invoice_id": "invoice-guid-456",
-    "file": {
-        "content": file_content,
-        "name": "receipt.pdf",
-        "contentType": "application/pdf"
+result = await integration.execute_action(
+    "attach_file_to_invoice",
+    {
+        "tenant_id": "tenant-guid-123",
+        "invoice_id": "invoice-guid-456",
+        "file": {"content": file_content, "name": "receipt.pdf", "contentType": "application/pdf"},
+        "include_online": True,
     },
-    "include_online": True
-})
+    context,
+)
 
-attachment = result["Attachments"][0]
+assert result.type == ResultType.ACTION, result.result
+attachment = result.result.data["Attachments"][0]
 print(f"Attached file: {attachment['FileName']} - Size: {attachment['ContentLength']} bytes")
 ```
 
 ### Get Attachments List
 ```python
 # Get all attachments for an invoice using tenant ID
-result = await integration.execute_action("get_attachments", {
-    "tenant_id": "tenant-guid-123",
-    "endpoint": "Invoices",
-    "guid": "invoice-guid-456"
-})
+result = await integration.execute_action(
+    "get_attachments", {"tenant_id": "tenant-guid-123", "endpoint": "Invoices", "guid": "invoice-guid-456"}, context
+)
 
-for attachment in result["Attachments"]:
+assert result.type == ResultType.ACTION, result.result
+for attachment in result.result.data["Attachments"]:
     print(f"Attachment: {attachment['FileName']} - Type: {attachment['MimeType']}")
 ```
 
 ### Download Attachment Content
 ```python
 # Download the actual file content of an attachment using tenant ID
-result = await integration.execute_action("get_attachment_content", {
-    "tenant_id": "tenant-guid-123",
-    "endpoint": "Invoices",
-    "guid": "invoice-guid-456",
-    "file_name": "receipt.pdf"
-})
+result = await integration.execute_action(
+    "get_attachment_content",
+    {"tenant_id": "tenant-guid-123", "endpoint": "Invoices", "guid": "invoice-guid-456", "file_name": "receipt.pdf"},
+    context,
+)
 
-if result["success"]:
-    file_data = result["file"]
-    print(f"Downloaded: {file_data['name']} - Content Type: {file_data['contentType']}")
-    # file_data['content'] contains base64 encoded file content
+assert result.type == ResultType.ACTION, result.result
+file_data = result.result.data["file"]
+print(f"Downloaded: {file_data['name']} - Content Type: {file_data['contentType']}")
+# file_data['content'] contains base64 encoded file content
 ```
 
 ### Get Purchase Orders
 ```python
 # Get all authorized purchase orders for a specific date range using tenant ID
-result = await integration.execute_action("get_purchase_orders", {
-    "tenant_id": "tenant-guid-123",
-    "where": "Status==\"AUTHORISED\" AND Date>=DateTime(2025,01,01)",
-    "order": "Date DESC",
-    "page": 1
-})
+result = await integration.execute_action(
+    "get_purchase_orders",
+    {
+        "tenant_id": "tenant-guid-123",
+        "where": 'Status=="AUTHORISED" AND Date>=DateTime(2025,01,01)',
+        "order": "Date DESC",
+        "page": 1,
+    },
+    context,
+)
 
-for po in result["PurchaseOrders"]:
+assert result.type == ResultType.ACTION, result.result
+for po in result.result.data["PurchaseOrders"]:
     print(f"PO: {po['PurchaseOrderNumber']} - {po['Total']} - {po['Contact']['Name']}")
 
 # Get a specific purchase order by ID
-result = await integration.execute_action("get_purchase_orders", {
-    "tenant_id": "tenant-guid-123",
-    "purchase_order_id": "po-guid-456"
-})
+result = await integration.execute_action(
+    "get_purchase_orders", {"tenant_id": "tenant-guid-123", "purchase_order_id": "po-guid-456"}, context
+)
 
-po = result["PurchaseOrders"][0]
+assert result.type == ResultType.ACTION, result.result
+po = result.result.data["PurchaseOrders"][0]
 print(f"PO Details: {po['PurchaseOrderNumber']} - Status: {po['Status']}")
 ```
 
 ### Create Purchase Order
 ```python
 # Create a new purchase order using tenant ID
-result = await integration.execute_action("create_purchase_order", {
-    "tenant_id": "tenant-guid-123",
-    "contact": {"ContactID": "supplier-guid-789"},
-    "line_items": [{
-        "Description": "Office Equipment",
-        "Quantity": 2,
-        "UnitAmount": 500.00,
-        "AccountCode": "630",
-        "TaxType": "INPUT"
-    }],
-    "date": "2025-01-31",
-    "delivery_date": "2025-02-15",
-    "reference": "PO-2025-001",
-    "status": "DRAFT",
-    "delivery_address": "123 Main St, City, State 12345",
-    "attention_to": "John Smith",
-    "telephone": "+1-555-0123",
-    "delivery_instructions": "Please call before delivery"
-})
+result = await integration.execute_action(
+    "create_purchase_order",
+    {
+        "tenant_id": "tenant-guid-123",
+        "contact": {"ContactID": "supplier-guid-789"},
+        "line_items": [
+            {
+                "Description": "Office Equipment",
+                "Quantity": 2,
+                "UnitAmount": 500.00,
+                "AccountCode": "630",
+                "TaxType": "INPUT",
+            }
+        ],
+        "date": "2025-01-31",
+        "delivery_date": "2025-02-15",
+        "reference": "PO-2025-001",
+        "status": "DRAFT",
+        "delivery_address": "123 Main St, City, State 12345",
+        "attention_to": "John Smith",
+        "telephone": "+1-555-0123",
+        "delivery_instructions": "Please call before delivery",
+    },
+    context,
+)
 
-po = result["PurchaseOrders"][0]
+assert result.type == ResultType.ACTION, result.result
+po = result.result.data["PurchaseOrders"][0]
 print(f"Created PO: {po['PurchaseOrderNumber']} - Total: {po['Total']}")
 ```
 
 ### Update Purchase Order
 ```python
 # Update an existing purchase order using tenant ID
-result = await integration.execute_action("update_purchase_order", {
-    "tenant_id": "tenant-guid-123",
-    "purchase_order_id": "po-guid-456",
-    "status": "AUTHORISED",
-    "reference": "PO-2025-001-UPDATED",
-    "delivery_date": "2025-02-20"
-})
+result = await integration.execute_action(
+    "update_purchase_order",
+    {
+        "tenant_id": "tenant-guid-123",
+        "purchase_order_id": "po-guid-456",
+        "status": "AUTHORISED",
+        "reference": "PO-2025-001-UPDATED",
+        "delivery_date": "2025-02-20",
+    },
+    context,
+)
 
-po = result["PurchaseOrders"][0]
+assert result.type == ResultType.ACTION, result.result
+po = result.result.data["PurchaseOrders"][0]
 print(f"Updated PO: {po['PurchaseOrderNumber']} - Status: {po['Status']}")
 ```
 
 ### Add Note to Purchase Order
 ```python
 # Add a note to a purchase order's history using tenant ID
-result = await integration.execute_action("add_note_to_purchase_order", {
-    "tenant_id": "tenant-guid-123",
-    "purchase_order_id": "po-guid-456",
-    "note": "Supplier confirmed delivery date. Items will arrive on Feb 20th."
-})
+result = await integration.execute_action(
+    "add_note_to_purchase_order",
+    {
+        "tenant_id": "tenant-guid-123",
+        "purchase_order_id": "po-guid-456",
+        "note": "Supplier confirmed delivery date. Items will arrive on Feb 20th.",
+    },
+    context,
+)
 
-history = result["HistoryRecords"][0]
+assert result.type == ResultType.ACTION, result.result
+history = result.result.data["HistoryRecords"][0]
 print(f"Added note: {history['Details']}")
 ```
 
 ### Get Purchase Order History
 ```python
 # Get history and notes for a purchase order using tenant ID
-result = await integration.execute_action("get_purchase_order_history", {
-    "tenant_id": "tenant-guid-123",
-    "purchase_order_id": "po-guid-456"
-})
+result = await integration.execute_action(
+    "get_purchase_order_history", {"tenant_id": "tenant-guid-123", "purchase_order_id": "po-guid-456"}, context
+)
 
-for record in result["HistoryRecords"]:
+assert result.type == ResultType.ACTION, result.result
+for record in result.result.data["HistoryRecords"]:
     print(f"{record['DateUTC']}: {record['Details']}")
 ```
 
 ### Delete Purchase Order
 ```python
 # Delete a purchase order by setting status to DELETED using tenant ID
-result = await integration.execute_action("delete_purchase_order", {
-    "tenant_id": "tenant-guid-123",
-    "purchase_order_id": "po-guid-456"
-})
+result = await integration.execute_action(
+    "delete_purchase_order", {"tenant_id": "tenant-guid-123", "purchase_order_id": "po-guid-456"}, context
+)
 
-po = result["PurchaseOrders"][0]
+assert result.type == ResultType.ACTION, result.result
+po = result.result.data["PurchaseOrders"][0]
 print(f"Deleted PO: {po['PurchaseOrderNumber']} - Status: {po['Status']}")
 ```
 
 ## Testing
+
+### Offline unit tests
+
+Install HiveUp 2.5.4 from a Tooling local build as described in the root [contribution guide](../CONTRIBUTING.md). HiveUp isn't published to PyPI and isolates this integration's existing requirements. From the repository root, run:
+
+```bash
+hiveup test xero
+```
+
+### Live API tests
+
+Prepare a separate local environment with `xero/requirements.txt` and the repository's test dependencies. Copy the root [.env.example](../.env.example) to an uncommitted `.env` and set `XERO_ACCESS_TOKEN` and `XERO_TENANT_ID` for a dedicated Xero test organization. Don't put credentials in tracked test files.
+
+From the repository root in that prepared environment, exclude tests that create or change accounting data:
+
+```bash
+python -m pytest xero/tests/test_xero_integration.py -m "integration and not destructive"
+```
+
+Tests marked `destructive` require a separate explicit opt-in and must not target a production organization.
 
 ### API Testing with Postman
 
@@ -456,26 +529,6 @@ Before implementing the integration, you can test Xero API access using Postman:
 
 This helps validate API access and understand response structures before coding the integration.
 
-### Quick Test
-```bash
-# Run basic tests
-cd tests
-python test_xero.py
-```
-
-### Test Structure
-```python
-# Example test for getting available connections
-async def test_get_available_connections():
-    auth = {}  # OAuth tokens handled automatically
-    inputs = {}
-    
-    async with ExecutionContext(auth=auth) as context:
-        result = await xero.execute_action("get_available_connections", inputs, context)
-        assert result["success"] == True
-        assert "companies" in result
-```
-
 ## API Reference
 
 ### Actions
@@ -487,9 +540,9 @@ Get all available Xero tenant connections with company names and IDs.
 - No input parameters required
 
 **Output:**
-- `success`: Boolean indicating if request was successful
 - `companies`: Array of company objects with tenant_id and company_name
-- `message`: Error message if success is false
+
+Check the SDK result type for success or failure; this payload has no `success` field.
 
 #### `get_invoices`
 Retrieve invoices from Xero API with optimized filtering and pagination.
@@ -506,7 +559,7 @@ Retrieve invoices from Xero API with optimized filtering and pagination.
 - `contact_ids` (optional): Comma-separated contact IDs for filtering
 
 **Output:**
-- `invoices`: Array containing Xero invoice objects with invoice details, line items, and contact information
+- `Invoices`: Array containing Xero invoice objects with invoice details, line items, and contact information
 
 #### `get_invoice_pdf`
 Download a specific invoice as a PDF file from Xero API. Works with both sales invoices (ACCREC) and purchase bills (ACCPAY).
@@ -517,8 +570,8 @@ Download a specific invoice as a PDF file from Xero API. Works with both sales i
 
 **Output:**
 - `file`: Object containing name, content (base64 encoded), and contentType (application/pdf)
-- `success`: Boolean indicating if download was successful
-- `error`: Error message if download failed
+
+Download failures return an SDK error result, not `success` or `error` fields in a successful payload.
 
 **Use Cases:**
 - Download overdue invoices for customer follow-up
@@ -551,7 +604,7 @@ Retrieve aged payables report for a specific contact.
 - `date` (optional): Report date (YYYY-MM-DD format)
 
 **Output:**
-- `reports`: Array containing Xero aged payables report data
+- `Reports`: Array containing raw Xero aged payables report data (`ReportName`, `ReportDate`, and `Rows`)
 
 #### `get_aged_receivables`
 Retrieve aged receivables report for a specific contact.
@@ -562,7 +615,7 @@ Retrieve aged receivables report for a specific contact.
 - `date` (optional): Report date (YYYY-MM-DD format)
 
 **Output:**
-- `reports`: Array containing Xero aged receivables report data
+- `Reports`: Array containing raw Xero aged receivables report data
 
 #### `get_balance_sheet`
 Access balance sheet report with optional period comparisons.
@@ -573,7 +626,7 @@ Access balance sheet report with optional period comparisons.
 - `periods` (optional): Number of periods to compare (1-12)
 
 **Output:**
-- `reports`: Array containing balance sheet report data
+- `Reports`: Array containing raw Xero balance sheet report data
 
 #### `get_profit_and_loss`
 Retrieve profit and loss statement with flexible parameters.
@@ -587,7 +640,7 @@ Retrieve profit and loss statement with flexible parameters.
 - `periods` (optional): Number of periods to compare (1-12)
 
 **Output:**
-- `reports`: Array containing P&L report data
+- `Reports`: Array containing raw Xero P&L report data
 
 #### `get_trial_balance`
 Access trial balance report with payment filtering options.
@@ -598,7 +651,7 @@ Access trial balance report with payment filtering options.
 - `payments_only` (optional): Include only payments (boolean)
 
 **Output:**
-- `reports`: Array containing trial balance report data
+- `Reports`: Array containing raw Xero trial balance report data
 
 #### `get_accounts`
 Retrieve chart of accounts to classify line items by type (revenue, expenses, assets, etc.).
@@ -609,7 +662,7 @@ Retrieve chart of accounts to classify line items by type (revenue, expenses, as
 - `order` (optional): Sort parameter (e.g., Code ASC)
 
 **Output:**
-- `accounts`: Array containing Xero account objects with ID, name, code, type, and status
+- `Accounts`: Array containing raw Xero account objects with ID, name, code, type, and status
 
 #### `get_payments`
 Fetch payment records for invoices and bills including customer receipts and supplier payments.
@@ -620,7 +673,7 @@ Fetch payment records for invoices and bills including customer receipts and sup
 - `order` (optional): Sort parameter (e.g., Date DESC)
 
 **Output:**
-- `payments`: Array containing Xero payment objects with amount, date, status, and references
+- `Payments`: Array containing raw Xero payment objects with amount, date, status, and references
 
 #### `get_bank_transactions`
 Access bank transactions not tied to invoices, covering CapEx, financing, and other operating expenses.
@@ -632,7 +685,7 @@ Access bank transactions not tied to invoices, covering CapEx, financing, and ot
 - `page` (optional): Page number for pagination
 
 **Output:**
-- `bank_transactions`: Array containing Xero bank transaction objects with amounts, references, and line items
+- `BankTransactions`: Array containing raw Xero bank transaction objects with amounts, references, and line items
 
 #### `create_sales_invoice`
 Create a new sales invoice (ACCREC) in Xero for billing customers.
@@ -723,7 +776,7 @@ Get all attachments for a specific invoice, bill, or bank transaction from Xero 
 
 **Input:**
 - `tenant_id` (required): Xero tenant ID
-- `endpoint` (required): The endpoint type ("Invoices", "Bills", "BankTransactions")
+- `endpoint` (required): `Invoices` for sales invoices and purchase bills, or `BankTransactions`
 - `guid` (required): The GUID of the invoice/bill/transaction
 
 **Output:**
@@ -734,14 +787,14 @@ Download the actual content of a specific attachment from Xero API for analysis.
 
 **Input:**
 - `tenant_id` (required): Xero tenant ID
-- `endpoint` (required): The endpoint type ("Invoices", "Bills", "BankTransactions")
+- `endpoint` (required): `Invoices` for sales invoices and purchase bills, or `BankTransactions`
 - `guid` (required): The GUID of the invoice/bill/transaction
 - `file_name` (required): The filename of the attachment to download
 
 **Output:**
 - `file`: Object containing name, content (base64), and contentType
-- `success`: Boolean indicating if download was successful
-- `error`: Error message if download failed
+
+Download failures return an SDK error result, not `success` or `error` fields in a successful payload.
 
 #### `get_purchase_orders`
 Retrieve purchase orders from Xero API with filtering and pagination. Can fetch all purchase orders or a specific one by ID.
@@ -867,14 +920,16 @@ xero/
 ├── README.md           # This file
 └── tests/
     ├── __init__.py
-    ├── context.py      # Test context setup
-    └── test_xero.py    # Test suite
+    ├── conftest.py              # Test context setup
+    ├── test_xero_unit.py        # Core offline unit tests
+    ├── test_xero_reports_unit.py # Report tests (additional focused unit files omitted)
+    └── test_xero_integration.py # Live API tests
 ```
 
 ### Adding New Features
 1. Update `config.json` with new action definitions
 2. Add implementation in `xero.py` with matching decorators
-3. Add corresponding tests in `tests/test_xero.py`
+3. Add corresponding offline tests in `tests/test_*_unit.py` and optional live tests in `tests/test_xero_integration.py`
 4. Update this documentation
 
 ## Troubleshooting

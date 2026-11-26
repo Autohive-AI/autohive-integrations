@@ -78,18 +78,17 @@ Member analytics are best-effort reporting data and should not be used for billi
 
 ## Tests and validation
 
-Run mocked tests and repository checks from the repository root:
+Install HiveUp using the [contributor setup](../CONTRIBUTING.md#local-validation). Run mocked tests and validation from the repository root, replacing `<base-ref>` with the actual fetched PR target ref:
 
 ```bash
-.venv/bin/pytest linkedin-community-management/ -v
-.venv/bin/python ../autohive-integrations-tooling/scripts/validate_integration.py linkedin-community-management
-.venv/bin/python ../autohive-integrations-tooling/scripts/check_code.py linkedin-community-management
+hiveup test linkedin-community-management
+hiveup validate --base-ref <base-ref> linkedin-community-management
 ```
 
-Optional read-only live tests use `LINKEDIN_COMMUNITY_ACCESS_TOKEN`:
+Prepare a separate environment with this integration's existing requirements using the [live-test setup](../CONTRIBUTING.md#running-integration-tests). Optional read-only live tests use `LINKEDIN_COMMUNITY_ACCESS_TOKEN`:
 
 ```bash
-.venv/bin/pytest linkedin-community-management/tests/test_linkedin_community_management_integration.py -m integration
+python -m pytest linkedin-community-management/tests/test_linkedin_community_management_integration.py -m "integration and not destructive"
 ```
 
 ## Official LinkedIn documentation

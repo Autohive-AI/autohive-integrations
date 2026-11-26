@@ -42,27 +42,31 @@ The integration requires these API permissions:
 
 ## Usage Examples
 
+Run these fragments inside an async function. `integration` must be the registered `google_looker` instance from `google_looker.py`; import `ResultType` from `autohive_integrations_sdk`. Your caller must supply an open `ExecutionContext` named `context`, managed with `async with`, using `{"auth_type": "Custom", "credentials": {"base_url": supplied_base_url, "client_id": supplied_client_id, "client_secret": supplied_client_secret}}`. The handler exchanges these credentials for a Looker token. Use a test instance and supply secrets securely rather than embedding them in source.
+
+`execute_action` returns an `IntegrationResult`. Check `ResultType.ACTION` before reading `result.result.data`; handle other result types as failures. See the [SDK calling patterns](https://github.com/autohive-ai/integrations-sdk/blob/release/2.1.0/docs/manual/patterns.md). These examples don't change the SDK pin in [requirements.txt](requirements.txt).
+
 ### List All Dashboards
 ```python
 # Get all available dashboards
-result = await integration.execute_action("list_dashboards", {
-    "fields": "id,title,description,created_at",
-    "per_page": 50
-})
+result = await integration.execute_action(
+    "list_dashboards", {"fields": "id,title,description,created_at", "per_page": 50}, context
+)
 
-for dashboard in result["dashboards"]:
+assert result.type == ResultType.ACTION, result.result
+for dashboard in result.result.data["dashboards"]:
     print(f"Dashboard: {dashboard['title']} (ID: {dashboard['id']})")
 ```
 
 ### Get Dashboard Details
 ```python
 # Get detailed information about a specific dashboard
-result = await integration.execute_action("get_dashboard", {
-    "dashboard_id": "123",
-    "fields": "id,title,description,dashboard_elements"
-})
+result = await integration.execute_action(
+    "get_dashboard", {"dashboard_id": "123", "fields": "id,title,description,dashboard_elements"}, context
+)
 
-dashboard = result["dashboard"]
+assert result.type == ResultType.ACTION, result.result
+dashboard = result.result.data["dashboard"]
 print(f"Dashboard: {dashboard['title']}")
 print(f"Elements: {len(dashboard['dashboard_elements'])}")
 ```
@@ -70,21 +74,25 @@ print(f"Elements: {len(dashboard['dashboard_elements'])}")
 ### Execute LookML Query
 ```python
 # Run a query against a Looker model
-result = await integration.execute_action("execute_lookml_query", {
-    "model": "sales_analytics",
-    "explore": "orders",
-    "dimensions": ["orders.status", "orders.created_date"],
-    "measures": ["orders.count", "orders.total_amount"],
-    "filters": {
-        "orders.created_date": "30 days ago for 30 days"
+result = await integration.execute_action(
+    "execute_lookml_query",
+    {
+        "model": "sales_analytics",
+        "explore": "orders",
+        "dimensions": ["orders.status", "orders.created_date"],
+        "measures": ["orders.count", "orders.total_amount"],
+        "filters": {"orders.created_date": "30 days ago for 30 days"},
+        "sorts": ["orders.created_date desc"],
+        "limit": 1000,
+        "result_format": "json",
     },
-    "sorts": ["orders.created_date desc"],
-    "limit": 1000,
-    "result_format": "json"
-})
+    context,
+)
 
 import json
-query_data = json.loads(result["query_results"])
+
+assert result.type == ResultType.ACTION, result.result
+query_data = json.loads(result.result.data["query_results"])
 for row in query_data:
     print(f"Status: {row['orders.status']}, Count: {row['orders.count']}")
 ```
@@ -92,8 +100,10 @@ for row in query_data:
 ### Execute SQL Query
 ```python
 # Run raw SQL against a connected database
-result = await integration.execute_action("execute_sql_query", {
-    "sql": """
+result = await integration.execute_action(
+    "execute_sql_query",
+    {
+        "sql": """
         SELECT 
             status,
             COUNT(*) as order_count,
@@ -103,12 +113,16 @@ result = await integration.execute_action("execute_sql_query", {
         GROUP BY status
         ORDER BY total_revenue DESC
     """,
-    "connection_name": "production_warehouse",
-    "result_format": "json"
-})
+        "connection_name": "production_warehouse",
+        "result_format": "json",
+    },
+    context,
+)
 
 import json
-sql_data = json.loads(result["query_results"])
+
+assert result.type == ResultType.ACTION, result.result
+sql_data = json.loads(result.result.data["query_results"])
 for row in sql_data:
     print(f"{row['status']}: {row['order_count']} orders, ${row['total_revenue']}")
 ```
@@ -116,43 +130,41 @@ for row in sql_data:
 ### List Models and Explores
 ```python
 # Get all available models
-models_result = await integration.execute_action("list_models", {
-    "fields": "name,label,explores"
-})
+models_result = await integration.execute_action("list_models", {"fields": "name,label,explores"}, context)
 
-for model in models_result["models"]:
+assert models_result.type == ResultType.ACTION, models_result.result
+for model in models_result.result.data["models"]:
     print(f"Model: {model['name']} ({model['label']})")
-    
+
     # Get detailed model information
-    model_detail = await integration.execute_action("get_model", {
-        "model_name": model['name'],
-        "fields": "name,explores.name,explores.label"
-    })
-    
-    for explore in model_detail["model"]["explores"]:
+    model_detail = await integration.execute_action(
+        "get_model", {"model_name": model["name"], "fields": "name,explores.name,explores.label"}, context
+    )
+
+    assert model_detail.type == ResultType.ACTION, model_detail.result
+    for explore in model_detail.result.data["model"]["explores"]:
         print(f"  - Explore: {explore['name']} ({explore['label']})")
 ```
 
 ## Testing
 
-### Quick Test (Mock Data)
+### Offline unit tests
+
+Install HiveUp 2.5.4 from a Tooling local build as described in the root [contribution guide](../CONTRIBUTING.md). HiveUp isn't published to PyPI and isolates this integration's existing requirements. From the repository root, run:
+
 ```bash
-# Run tests with mock responses (safe, no API calls)
-python test/test_google_looker_integration.py
+hiveup test google-looker
 ```
 
 ### Live API Testing
-1. **Configure credentials** in your test environment:
-   ```python
-   LOOKER_BASE_URL = "https://your-company.looker.com"
-   LOOKER_CLIENT_ID = "your_client_id"
-   LOOKER_CLIENT_SECRET = "your_client_secret"
-   ```
 
-2. **Run live tests** (ensure you have test dashboards and models):
-   ```bash
-   python -m pytest test/ -v
-   ```
+Prepare a separate local environment with `google-looker/requirements.txt` and the repository's test dependencies. Copy the root [.env.example](../.env.example) to an uncommitted `.env` and set `LOOKER_BASE_URL`, `LOOKER_CLIENT_ID`, and `LOOKER_CLIENT_SECRET`. Set `LOOKER_TEST_DASHBOARD_ID` and `LOOKER_TEST_MODEL_NAME` to existing resources to exercise the resource-specific tests; those tests skip when the IDs aren't supplied. Don't put credentials in tracked test files.
+
+From the repository root in that prepared environment, run the read-only live tests against a test instance:
+
+```bash
+python -m pytest google-looker/tests/test_google_looker_integration.py -m "integration and not destructive"
+```
 
 ### Test Coverage
 The test suite covers:
@@ -176,7 +188,6 @@ Retrieve all available dashboards.
 
 **Output:**
 - `dashboards`: Array of dashboard objects
-- `result`: Boolean indicating success
 
 #### `get_dashboard`
 Get detailed information about a specific dashboard.
@@ -187,7 +198,6 @@ Get detailed information about a specific dashboard.
 
 **Output:**
 - `dashboard`: Complete dashboard object with elements and metadata
-- `result`: Boolean indicating success
 
 #### `execute_lookml_query`
 Execute a query against Looker models.
@@ -203,8 +213,7 @@ Execute a query against Looker models.
 - `result_format` (optional): Output format (json, csv, etc.)
 
 **Output:**
-- `query_results`: JSON string containing query results
-- `result`: Boolean indicating success
+- `query_results`: String containing query results in the requested format; parse with `json.loads` only for JSON output
 
 #### `execute_sql_query`
 Execute raw SQL queries against connected databases.
@@ -217,8 +226,7 @@ Execute raw SQL queries against connected databases.
 
 **Output:**
 - `slug`: Query identifier for reference
-- `query_results`: JSON string containing SQL results
-- `result`: Boolean indicating success
+- `query_results`: String containing SQL results in the requested format; parse with `json.loads` only for JSON output
 
 #### `list_models`
 Retrieve all available LookML models.
@@ -228,7 +236,6 @@ Retrieve all available LookML models.
 
 **Output:**
 - `models`: Array of model objects with explores
-- `result`: Boolean indicating success
 
 #### `get_model`
 Get detailed information about a specific model.
@@ -239,7 +246,6 @@ Get detailed information about a specific model.
 
 **Output:**
 - `model`: Complete model object with explores and dimensions
-- `result`: Boolean indicating success
 
 #### `list_connections`
 Retrieve all database connections.
@@ -249,16 +255,10 @@ Retrieve all database connections.
 
 **Output:**
 - `connections`: Array of connection objects
-- `result`: Boolean indicating success
 
 ## Error Handling
 
-The integration includes comprehensive error handling:
-- Authentication failures return appropriate error messages
-- Invalid API responses are handled gracefully
-- Missing required parameters are validated
-- Network errors return empty results with error details
-- All actions include error fields in responses
+Check `IntegrationResult.type` before reading an action payload. The handlers return `ActionError` for authentication, network, and provider failures; `execute_action` wraps those errors rather than returning empty successful data. SDK schema validation failures also produce a non-action result. `ExecutionContext.fetch` raises exceptions for HTTP errors rather than returning an error-status `FetchResponse` as a success. Successful action payloads have no shared `result` or `error` field.
 
 ## Development
 
@@ -269,16 +269,17 @@ google-looker/
 ├── requirements.txt         # Python dependencies
 ├── google_looker.py        # Main integration code
 ├── README.md               # This file
-└── test/
+└── tests/
     ├── __init__.py
-    ├── context.py                    # Test configuration
-    └── test_google_looker_integration.py # Test suite
+    ├── conftest.py                       # Test import setup
+    ├── test_google_looker_unit.py        # Offline unit tests
+    └── test_google_looker_integration.py # Live API tests
 ```
 
 ### Adding New Features
 1. Update `config.json` with new action definitions
 2. Add implementation in `google_looker.py`
-3. Add tests in `test/test_google_looker_integration.py`
+3. Add offline tests in `tests/test_google_looker_unit.py` and optional live tests in `tests/test_google_looker_integration.py`
 4. Update documentation
 
 ## Troubleshooting

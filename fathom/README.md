@@ -114,7 +114,7 @@ Lists all team members the authenticated user has access to, with optional filte
 
 The integration requires the following Python dependencies:
 
-- `autohive-integrations-sdk>=1.0.2`
+- `autohive-integrations-sdk~=1.0.2` (the existing pin in `requirements.txt`)
 
 All dependencies are automatically included when packaging the integration using the `hiveup` CLI tool.
 

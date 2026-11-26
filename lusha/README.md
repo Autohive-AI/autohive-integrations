@@ -148,18 +148,16 @@ This release covers discovery and enrichment workflows. Tables, webhook manageme
 
 ## Development and tests
 
-Requires Python 3.13+ and `autohive-integrations-sdk~=2.0.1`. From the repository root, with the Python environment activated:
+Requires Python 3.13+ and keeps `autohive-integrations-sdk~=2.0.1`. Install HiveUp using the [contributor setup](../CONTRIBUTING.md#local-validation), then run from the repository root. Fetch the actual PR target ref first; the example assumes a PR targeting `master`:
 
 ```powershell
-python -m pip install -r requirements-test.txt -r lusha/requirements.txt
-python -m pytest lusha/ -v
-python ../autohive-integrations-tooling/scripts/validate_integration.py lusha
-python ../autohive-integrations-tooling/scripts/check_code.py --base-ref origin/master lusha
+hiveup test lusha
+hiveup validate --base-ref origin/master lusha
 ```
 
 Unit tests mock `context.fetch` using SDK `FetchResponse` objects and cover every action, request payloads, authentication, validation boundaries, error handling, pagination, partial batches and waterfall states.
 
-Live tests use the real SDK HTTP client and cover all 12 actions across five files:
+For live tests, [prepare a separate environment](../CONTRIBUTING.md#running-integration-tests) with `requirements-test.txt` and `lusha/requirements.txt`. They use the real SDK HTTP client and cover all 12 actions across five files:
 
 | File | Actions |
 | --- | --- |

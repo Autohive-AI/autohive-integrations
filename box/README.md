@@ -35,7 +35,8 @@ Upload a file to a Box folder.
 
 ## Requirements
 
-- `autohive-integrations-sdk~=1.0.2`
+- `autohive-integrations-sdk~=2.0.0` (the existing pin in `requirements.txt`)
+- `aiohttp` for binary downloads and multipart uploads
 
 ## API Info
 

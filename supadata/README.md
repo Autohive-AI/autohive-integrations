@@ -82,11 +82,10 @@ This integration is particularly useful for:
 
 ## Testing
 
-To run the tests for this integration:
+Install HiveUp using the [contributor setup](../CONTRIBUTING.md#local-validation), then run mocked unit tests from the repository root:
 
-1.  Navigate to the integration's directory: `cd supadata`
-2.  Install dependencies: `pip install -r requirements.txt`
-3.  Set up your test environment with a valid Supadata API key
-4.  Run the tests: `python tests/test_supadata_transcribe.py`
+```bash
+hiveup test supadata
+```
 
-Note: Tests require a valid Supadata API key to interact with the actual service. Consider setting up environment variables for testing credentials.
+Unit tests do not need credentials. Optional live tests make real service calls and may consume credits; follow the [live-test setup](../CONTRIBUTING.md#running-integration-tests), review selected tests, and keep the API key in an uncommitted `.env`.

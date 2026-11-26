@@ -33,7 +33,7 @@ This integration uses Microsoft 365 OAuth 2.0 platform authentication with the f
 pip install -r requirements.txt
 ```
 
-- `autohive-integrations-sdk>=1.0.0`
+- `autohive-integrations-sdk~=1.0.2` (the existing pin in `requirements.txt`)
 - `python-pptx>=0.6.21` - Required for slide manipulation actions
 
 ## Actions

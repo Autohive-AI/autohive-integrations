@@ -253,12 +253,13 @@ On failure:
 
 ## Testing
 
+Install HiveUp using the [contributor setup](../CONTRIBUTING.md#local-validation), then run mocked unit tests from the repository root:
+
 ```bash
-cd ghost
-pip install -r requirements.txt
-# Edit tests/test_ghost.py and fill in TEST_AUTH with your credentials
-python tests/test_ghost.py
+hiveup test ghost
 ```
+
+Unit tests do not need credentials. For optional live tests, use the [prepared-environment and safe-selector instructions](../CONTRIBUTING.md#running-integration-tests); keep credentials in an uncommitted `.env`, not tracked test files.
 
 > **Note:** Write actions (`create_post`, `create_member`, etc.) create real content in your Ghost instance. Clean up test content after running.
 
