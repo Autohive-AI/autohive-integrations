@@ -407,6 +407,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 ### YouTube
 
 [youtube](youtube): YouTube Data API v3 integration for managing videos, channels, playlists, and comments. Supports video search and retrieval, channel information, playlist management, and comment operations. Features OAuth2 authentication with YouTube scopes. Ideal for content automation, analytics, and video workflow management.
+### Trade Me
+
+[trademe](trademe): Read account details and seller listings with Trade Me OAuth 1.0a custom authentication. Includes five actions for profile details, active listings, sold items, unsold items, and seller listing details. Defaults to the sandbox. Includes local sandbox authorization and read-only live tests.
+
 ### Toggl Track
 
 [toggl](toggl): Time tracking integration with Toggl Track API for managing time entries and workspace data. Supports creating time entries with start/stop times, descriptions, project assignments, billable flags, and tags. Features API token authentication via HTTP Basic Auth. Ideal for automating time tracking workflows and logging billable hours.
