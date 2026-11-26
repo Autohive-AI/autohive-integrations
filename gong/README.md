@@ -11,22 +11,15 @@ A comprehensive integration for accessing Gong call recordings, transcripts, and
 - **Search Calls** - Search through calls using keywords and topics
 - **List Users** - Retrieve workspace users with roles and status
 
-### Triggers
-- **New Calls Polling** - Monitor for new calls in the workspace (5-minute intervals)
-
 ## Setup
 
 ### 1. Authentication
-The integration uses Gong's API key authentication:
+The integration uses platform-managed Gong OAuth authentication:
 
-1. **Get API Credentials** (requires Gong admin access):
-   - Go to Company Settings > Ecosystem > API
-   - Click "Get API Key" to receive your access key and secret
-   - Copy both values for configuration
-
-2. **Configure Integration**:
+1. **Configure Integration**:
    - Set authentication provider to "gong"
-   - Provide your API key and secret through the platform's auth system
+   - Complete the OAuth flow through the platform's auth system
+   - Supply the customer-specific API base URL from the OAuth token response as `context.metadata["api_base_url"]`
 
 ### 2. Installation
 ```bash
@@ -35,24 +28,28 @@ pip install -r requirements.txt
 
 ### 3. Required Scopes
 The integration requires these API scopes:
-- `api:calls:read` - Access call data
-- `api:calls:transcript:read` - Access call transcripts
-- `api:crm:read` - Access CRM integration data
+- `api:calls:read:basic` - Access basic call data
+- `api:calls:read:extensive` - Access extensive call data
+- `api:calls:read:transcript` - Access call transcripts
 - `api:users:read` - Access user information
-- `api:call-user-access:read` - Access user call permissions
 
 ## Usage Examples
 
+Run these fragments inside an async function. `integration` must be the registered `gong` instance from `gong.py`; import `ResultType` from `autohive_integrations_sdk`. Your caller must supply an open `ExecutionContext` named `context`, managed with `async with`, using `{"auth_type": "PlatformOauth2", "credentials": {"access_token": supplied_token}}` and `metadata={"api_base_url": supplied_api_base_url}`. Use the `api_base_url_for_customer` value from Gong's OAuth response when present. Supply credentials securely rather than embedding them in source.
+
+`execute_action` returns an `IntegrationResult`. Check `ResultType.ACTION` before reading `result.result.data`; handle other result types as failures. See the [SDK calling patterns](https://github.com/autohive-ai/integrations-sdk/blob/release/2.1.0/docs/manual/patterns.md). These examples don't change the SDK pin in [requirements.txt](requirements.txt).
+
 ### List Recent Calls
 ```python
-# Get calls from the last 30 days
+# Get calls in a specified date range
 result = await integration.execute_action("list_calls", {
     "from_date": "2025-01-01",
     "to_date": "2025-01-31",
     "limit": 50
-})
+}, context)
 
-for call in result["calls"]:
+assert result.type == ResultType.ACTION, result.result
+for call in result.result.data["calls"]:
     print(f"Call: {call['title']} - {call['started']}")
 ```
 
@@ -61,10 +58,11 @@ for call in result["calls"]:
 # Get detailed transcript for a specific call
 result = await integration.execute_action("get_call_transcript", {
     "call_id": "call_123456"
-})
+}, context)
 
-for segment in result["transcript"]:
-    print(f"{segment['speaker']}: {segment['text']}")
+assert result.type == ResultType.ACTION, result.result
+for segment in result.result.data["transcript"]:
+    print(f"{segment['speaker_name']}: {segment['text']}")
 ```
 
 ### Search Calls
@@ -74,46 +72,35 @@ result = await integration.execute_action("search_calls", {
     "query": "product demo pricing",
     "from_date": "2025-01-01",
     "limit": 25
-})
+}, context)
 
-for call in result["results"]:
+assert result.type == ResultType.ACTION, result.result
+for call in result.result.data["results"]:
     print(f"Match: {call['title']} (Score: {call['relevance_score']})")
 ```
 
 ### Monitor New Calls
-```python
-# Set up polling for new calls
-await integration.setup_polling_trigger("new_calls", {
-    "user_ids": ["user_123", "user_456"],
-    "limit": 100
-})
-```
+
+Schedule a workflow to call `list_calls` with the desired date range and user IDs. This integration doesn't register a polling trigger in `config.json` or `gong.py`; there is no `setup_polling_trigger` SDK method to call.
 
 ## Testing
 
-### Quick Test (Mock Data)
+### Offline unit tests
+
+Install HiveUp 2.5.4 from a Tooling local build as described in the root [contribution guide](../CONTRIBUTING.md). HiveUp isn't published to PyPI and isolates this integration's existing requirements. From the repository root, run:
+
 ```bash
-# Run tests with mock responses (safe, no API calls)
-python test/run_tests.py --type mock --verbose
+hiveup test gong
 ```
 
 ### Live API Testing
-1. **Configure credentials** in `test/test_config.py`:
-   ```python
-   GONG_API_KEY = "your_access_key"
-   GONG_API_SECRET = "your_access_key_secret"
-   ENABLE_LIVE_TESTS = True
-   MOCK_RESPONSES = False
-   ```
 
-2. **Run live tests**:
-   ```bash
-   python test/run_tests.py --type integration --verbose
-   ```
+Prepare a separate local environment with `gong/requirements.txt` and the repository's test dependencies. Copy the root [.env.example](../.env.example) to an uncommitted `.env` and set `GONG_ACCESS_TOKEN`. Set `GONG_API_BASE_URL` to the `api_base_url_for_customer` value when Gong's OAuth response includes it; the test fixture otherwise defaults to `https://api.gong.io`. These tests use an OAuth access token, not the access-key variables also listed in `.env.example`. Don't put credentials in tracked test files.
 
-### Check Configuration
+From the repository root in that prepared environment, run the read-only live tests against a dedicated test workspace:
+
 ```bash
-python test/run_tests.py --check-config
+python -m pytest gong/tests/test_gong_integration.py -m "integration and not destructive"
 ```
 
 ## API Reference
@@ -143,7 +130,7 @@ Retrieve transcript for a specific call.
 
 **Output:**
 - `call_id`: The call ID
-- `transcript`: Array of transcript segments with speaker, timing, and text
+- `transcript`: Array of segments containing `speaker_id`, `speaker_name`, `start_time`, `end_time`, and `text`
 
 #### `get_call_details`
 Get comprehensive call information.
@@ -179,25 +166,9 @@ List workspace users.
 - `has_more`: Boolean indicating more results available
 - `next_cursor`: Pagination cursor for next page
 
-### Triggers
-
-#### `new_calls`
-Polls for new calls every 5 minutes.
-
-**Input:**
-- `user_ids` (optional): Array of user IDs to monitor
-- `limit` (optional): Maximum calls to check (default: 50)
-
-**Output:**
-- Array of new call objects
-
 ## Error Handling
 
-The integration includes comprehensive error handling:
-- Network errors return empty results with error messages
-- Invalid API responses are handled gracefully
-- Rate limiting and authentication errors are properly reported
-- All actions include error fields in responses
+Check `IntegrationResult.type` before reading an action payload. The handlers return `ActionError` for provider and network failures; `execute_action` wraps these errors rather than returning empty successful data. SDK schema validation failures also produce a non-action result. `ExecutionContext.fetch` raises exceptions for HTTP errors rather than returning an error-status `FetchResponse` as a success.
 
 ## Development
 
@@ -208,17 +179,17 @@ gong/
 ├── requirements.txt     # Python dependencies
 ├── gong.py             # Main integration code
 ├── README.md           # This file
-└── test/
-    ├── test_config.py           # Test configuration
-    ├── test_gong_integration.py # Test suite
-    ├── run_tests.py            # Test runner
-    └── README.md               # Test documentation
+└── tests/
+    ├── __init__.py
+    ├── conftest.py              # Test import setup
+    ├── test_gong_unit.py        # Offline unit tests
+    └── test_gong_integration.py # Live API tests
 ```
 
 ### Adding New Features
-1. Update `config.json` with new action/trigger definitions
+1. Update `config.json` with new action definitions
 2. Add implementation in `gong.py`
-3. Add tests in `test/test_gong_integration.py`
+3. Add offline tests in `tests/test_gong_unit.py` and optional live tests in `tests/test_gong_integration.py`
 4. Update documentation
 
 ## Troubleshooting
@@ -226,7 +197,7 @@ gong/
 ### Common Issues
 
 1. **Authentication Failed**
-   - Verify API key and secret are correct
+   - Verify the OAuth access token is valid and the customer-specific API base URL is supplied
    - Ensure you have admin access to Gong
    - Check that required scopes are enabled
 
@@ -252,4 +223,4 @@ python gong.py
 For issues related to:
 - **Integration bugs**: Check the test suite and error logs
 - **Gong API**: Consult Gong's official API documentation
-- **Authentication**: Verify admin access and API key configuration
+- **Authentication**: Verify admin access, OAuth configuration, and granted scopes

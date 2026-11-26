@@ -248,13 +248,13 @@ Two types of properties are supported:
 
 ## Testing
 
-To test the integration:
+Install HiveUp using the [contributor setup](../CONTRIBUTING.md#local-validation), then run mocked unit tests from the repository root:
 
-1. Obtain a Google OAuth2 access token with Search Console API access
-2. Verify you have a property set up in Google Search Console
-3. Update the credentials in `tests/test_google_search_console.py`
-4. Replace `SITE_URL` and `access_token` with your values
-5. Run the tests: `python tests/test_google_search_console.py`
+```bash
+hiveup test google-search-console
+```
+
+Unit tests do not need credentials. Optional live tests need an OAuth token and an accessible Search Console property; use the [live-test setup](../CONTRIBUTING.md#running-integration-tests) and uncommitted `.env` values documented in `.env.example`, not edits to tracked tests.
 
 ## Example Usage
 

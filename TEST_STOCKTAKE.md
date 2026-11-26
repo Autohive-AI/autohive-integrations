@@ -1,5 +1,7 @@
 # Test Stocktake Report
 
+> **Historical snapshot:** This report describes the repository on April 14, 2026. Its counts, manual runners, file paths, and recommendations are not current instructions. Use [CONTRIBUTING.md](CONTRIBUTING.md#running-tests) for the current HiveUp, mocked-unit-test, and opt-in live-test workflows.
+
 **Date:** 2026-04-14  
 **Scope:** All 86 integrations in `autohive-integrations`
 

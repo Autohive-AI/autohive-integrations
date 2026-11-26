@@ -298,17 +298,13 @@ No additional configuration fields are required as authentication is handled thr
 
 ## Testing
 
-To run the tests:
+Install HiveUp using the [contributor setup](../CONTRIBUTING.md#local-validation), then run mocked unit tests from the repository root:
 
-1. Navigate to the integration's directory: `cd harvest`
-2. Install dependencies: `pip install -r requirements.txt -t dependencies`
-3. Update test credentials in `tests/test_harvest.py` with your Harvest OAuth token and account ID
-4. Update `project_id` and `task_id` with actual values from your Harvest account
-5. Run the tests: `python tests/test_harvest.py`
+```bash
+hiveup test harvest
+```
 
-The test suite includes tests for all 10 actions:
-- Time Entry Actions: create, stop, list, update, delete
-- Resource Actions: list projects, get project, list clients, list tasks, list users
+Unit tests do not need credentials. Optional live tests use a real Harvest account and can create or change time entries; follow the [prepared-environment and safe-selector instructions](../CONTRIBUTING.md#running-integration-tests). Keep tokens, account IDs, and optional test-resource values in an uncommitted `.env`, using `.env.example` as the reference, not edits to tracked tests.
 
 ## API Rate Limits
 

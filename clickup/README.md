@@ -456,12 +456,13 @@ Deletes a comment permanently.
 
 ## Testing
 
-To test the integration:
+Install HiveUp using the [contributor setup](../CONTRIBUTING.md#local-validation), then run mocked unit tests from the repository root:
 
-1. Navigate to the integration directory: `cd clickup`
-2. Install dependencies: `pip install -r requirements.txt`
-3. Configure OAuth credentials through the Autohive platform
-4. Run tests: `python tests/test_clickup.py`
+```bash
+hiveup test clickup
+```
+
+Unit tests do not need credentials. For optional live tests, use the [prepared-environment and safe-selector instructions](../CONTRIBUTING.md#running-integration-tests); keep OAuth tokens in an uncommitted `.env`, not tracked test files.
 
 ## Common Use Cases
 

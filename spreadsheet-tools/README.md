@@ -21,20 +21,28 @@ pip install -r requirements.txt
 
 ## Usage Examples
 
+Run this fragment inside an async function. `integration` must be the registered `spreadsheet_tools` instance from `spreadsheet_tools.py`; import `ResultType` from `autohive_integrations_sdk`. Your caller must supply an open `ExecutionContext` named `context`, managed with `async with ExecutionContext() as context`; no authentication is needed.
+
+`execute_action` returns an `IntegrationResult`. Check `ResultType.ACTION` before reading `result.result.data`; handle other result types as failures. See the [SDK calling patterns](https://github.com/autohive-ai/integrations-sdk/blob/release/2.1.0/docs/manual/patterns.md). This example doesn't change the SDK pin in [requirements.txt](requirements.txt).
+
 ### Convert Spreadsheet to JSON
 
 ```python
-# Convert a CSV or Excel file to JSON format
+import base64
+
+# Use actual base64 file content, not a placeholder string.
+csv_bytes = b"Name,Age,Email\nJohn Doe,30,john@example.com\nJane Smith,25,jane@example.com\n"
 result = await integration.execute_action("convert_to_json", {
     "file": {
-        "content": "<base64_encoded_file_content>",
-        "name": "sales_data.xlsx",
-        "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "content": base64.b64encode(csv_bytes).decode("ascii"),
+        "name": "sales_data.csv",
+        "contentType": "text/csv"
     }
-})
+}, context)
 
-# The result contains a JSON file with converted data
-json_file = result["file"]
+assert result.type == ResultType.ACTION, result.result
+# The action payload contains a JSON file with converted data.
+json_file = result.result.data["file"]
 print(f"Converted file: {json_file['name']}")
 print(f"Content type: {json_file['contentType']}")
 ```
@@ -131,11 +139,13 @@ The integration includes comprehensive error handling:
 
 ## Testing
 
-To run the tests:
+Install HiveUp 2.5.4 from a Tooling local build as described in the root [contribution guide](../CONTRIBUTING.md). HiveUp isn't published to PyPI and isolates each integration's existing requirements. From the repository root, run:
 
-1. Navigate to the integration's directory: `cd spreadsheet-tools`
-2. Install dependencies: `pip install -r requirements.txt`
-3. Run the tests: `python -m pytest tests/` (if tests are available)
+```bash
+hiveup test spreadsheet-tools
+```
+
+HiveUp discovers `tests/test_*_unit.py`. This directory only has the legacy `tests/test_spreadsheet_tools.py`, so the command reports a skip rather than running that suite. A skip isn't a passing test result. Don't use an ambiguous `pytest tests/` command as evidence that these tests ran; see the root guide for test discovery and isolated environments.
 
 ## Development
 

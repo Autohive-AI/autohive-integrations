@@ -491,13 +491,18 @@ Search-as-you-type suggestions across products, collections, pages and articles,
 
 ## Usage Examples
 
+Run these fragments inside an async function with the registered `shopify_storefront` instance from `shopify_storefront.py`. Import `ResultType` from `autohive_integrations_sdk`. Your caller must supply an open `ExecutionContext` named `context`, managed with `async with`, using `{"auth_type": "Custom", "credentials": {"shop_url": supplied_shop_domain, "public_token": supplied_storefront_token}}`. You can supply `private_token` instead of `public_token` for server-side requests. Use a test store and supply customer credentials securely rather than embedding live credentials in source.
+
+`execute_action` returns an `IntegrationResult`. Check `ResultType.ACTION` before reading `result.result.data`; handle other result types as failures. See the [SDK calling patterns](https://github.com/autohive-ai/integrations-sdk/blob/release/2.1.0/docs/manual/patterns.md). These examples don't change the pin in [requirements.txt](requirements.txt) or add SDK 2.1 header behavior to this integration.
+
 ### Example 1: Search Products
 ```python
 result = await shopify_storefront.execute_action(
     "storefront_search_products", {"query": "t-shirt", "first": 5}, context
 )
 
-for product in result.data["products"]:
+assert result.type == ResultType.ACTION, result.result
+for product in result.result.data["products"]:
     print(f"Found: {product['title']} - {product['id']}")
 ```
 
@@ -505,15 +510,17 @@ for product in result.data["products"]:
 ```python
 # 1. Create a cart
 cart_result = await shopify_storefront.execute_action("storefront_create_cart", {}, context)
-cart_id = cart_result.data["cart"]["id"]
+assert cart_result.type == ResultType.ACTION, cart_result.result
+cart_id = cart_result.result.data["cart"]["id"]
 
 # 2. Add item to cart
 # Assuming you have a product variant ID
 variant_id = "gid://shopify/ProductVariant/1234567890"
 
-await shopify_storefront.execute_action(
+add_result = await shopify_storefront.execute_action(
     "storefront_add_to_cart", {"cart_id": cart_id, "lines": [{"merchandiseId": variant_id, "quantity": 1}]}, context
 )
+assert add_result.type == ResultType.ACTION, add_result.result
 ```
 
 ### Example 3: Customer Login and Profile
@@ -523,29 +530,20 @@ login_result = await shopify_storefront.execute_action(
     "storefront_customer_login", {"email": "customer@example.com", "password": "securepassword123"}, context
 )
 
-token = login_result.data["customer_access_token"]
+assert login_result.type == ResultType.ACTION, login_result.result
+token = login_result.result.data["customer_access_token"]
 
 # 2. Get Profile
 profile = await shopify_storefront.execute_action("storefront_get_customer", {"customer_access_token": token}, context)
 
-print(f"Logged in as: {profile.data['customer']['firstName']}")
+assert profile.type == ResultType.ACTION, profile.result
+print(f"Logged in as: {profile.result.data['customer']['firstName']}")
 ```
 
 ## Testing
 
-To run the tests:
+Install HiveUp 2.5.4 from a Tooling local build as described in the root [contribution guide](../CONTRIBUTING.md). HiveUp isn't published to PyPI and isolates this integration's existing requirements. From the repository root, run the offline unit tests:
 
-1. Navigate to the integration's directory:
-   ```bash
-   cd shopify-storefront
-   ```
-
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. Run the tests:
-   ```bash
-   python -m pytest tests/
-   ```
+```bash
+hiveup test shopify-storefront
+```

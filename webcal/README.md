@@ -71,12 +71,16 @@ Search for specific events in a webcal feed based on keywords.
 
 ## Requirements
 
-- `autohive-integrations-sdk~=1.0.2` - Autohive Integration SDK
+- `autohive-integrations-sdk~=2.0.0` - Autohive Integration SDK (the existing pin in `requirements.txt`)
 - `icalendar` - iCalendar parsing library
 - `pytz` - Timezone handling
 - `requests` - HTTP requests
 
 ## Usage Examples
+
+Run these fragments inside an async function with the registered `webcal` instance from `webcal.py`. Import `ResultType` from `autohive_integrations_sdk`. Your caller must supply an open `ExecutionContext` named `context`, managed with `async with ExecutionContext() as context`; no authentication is needed. Replace the feed URLs with your calendar's URL, and keep private feed URLs out of tracked files.
+
+`execute_action` returns an `IntegrationResult`. Check `ResultType.ACTION` before reading `result.result.data`; handle other result types as failures. See the [SDK calling patterns](https://github.com/autohive-ai/integrations-sdk/blob/release/2.1.0/docs/manual/patterns.md). This calling convention doesn't change the integration's existing dependency pin.
 
 ### Example 1: Fetch Upcoming Events
 
@@ -87,7 +91,8 @@ result = await webcal.execute_action(
     context,
 )
 
-for event in result.data["events"]:
+assert result.type == ResultType.ACTION, result.result
+for event in result.result.data["events"]:
     print(f"{event['summary']}: {event['start_time']} - {event['end_time']}")
 ```
 
@@ -106,9 +111,18 @@ result = await webcal.execute_action(
     context,
 )
 
-print(f"Found {len(result.data['events'])} events matching 'standup'")
-for event in result.data["events"]:
+assert result.type == ResultType.ACTION, result.result
+print(f"Found {len(result.result.data['events'])} events matching 'standup'")
+for event in result.result.data["events"]:
     print(f"  - {event['summary']} (matched in {event['match_field']})")
+```
+
+## Testing
+
+Install HiveUp 2.5.4 from a Tooling local build as described in the root [contribution guide](../CONTRIBUTING.md). HiveUp isn't published to PyPI and isolates this integration's existing requirements. From the repository root, run the offline unit tests:
+
+```bash
+hiveup test webcal
 ```
 
 ## Common Calendar Sources

@@ -143,8 +143,10 @@ No additional configuration fields are required as authentication is handled thr
 
 ## Testing
 
-To run the tests:
+Install HiveUp using the [contributor setup](../CONTRIBUTING.md#local-validation), then run mocked unit tests from the repository root:
 
-1. Navigate to the integration's directory: `cd google-calendar`
-2. Install dependencies: `pip install -r requirements.txt -t dependencies`
-3. Run the tests: `python tests/test_google_calendar.py`
+```bash
+hiveup test google-calendar
+```
+
+Unit tests do not need credentials. For optional live tests, use the [prepared-environment and safe-selector instructions](../CONTRIBUTING.md#running-integration-tests); keep OAuth tokens in an uncommitted `.env`.

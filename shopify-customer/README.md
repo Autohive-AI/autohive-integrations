@@ -213,6 +213,10 @@ Get a fresh access token using a refresh token.
 
 ## Usage Examples
 
+Run these fragments inside an async function with the registered `shopify_customer` instance from `shopify_customer.py`. Import `ResultType` from `autohive_integrations_sdk`. Your caller must supply an open `ExecutionContext` named `context`, managed with `async with`, using `{"auth_type": "Custom", "credentials": {"shop_url": supplied_shop_domain, "access_token": supplied_customer_token}}`. OAuth URL generation and code exchange need the shop domain but don't need an access token yet. Profile, order, and address actions need the customer's token; these handlers construct the Bearer header themselves.
+
+`execute_action` returns an `IntegrationResult`. Check `ResultType.ACTION` before reading `result.result.data`; handle other result types as failures. See the [SDK calling patterns](https://github.com/autohive-ai/integrations-sdk/blob/release/2.1.0/docs/manual/patterns.md). These examples don't change [requirements.txt](requirements.txt). Replace placeholder IDs and OAuth values with values supplied securely by your caller; don't embed live credentials in source.
+
 ### Example 1: OAuth Flow (Simplified)
 ```python
 # 1. Generate URL
@@ -220,18 +224,22 @@ auth_data = await shopify_customer.execute_action("customer_generate_oauth_url",
     "client_id": "your_client_id",
     "redirect_uri": "https://yourapp.com/callback"
 }, context)
+assert auth_data.type == ResultType.ACTION, auth_data.result
 
-# ... User redirects and returns with code ...
+# Redirect to auth_data.result.data["authorization_url"]. Store the state and
+# code_verifier securely. Verify the callback state before exchanging its code.
 
 # 2. Exchange Code
 tokens = await shopify_customer.execute_action("customer_exchange_code", {
     "code": "received_auth_code",
-    "code_verifier": auth_data.data["code_verifier"],
+    "code_verifier": auth_data.result.data["code_verifier"],
     "redirect_uri": "https://yourapp.com/callback",
     "client_id": "your_client_id"
 }, context)
+assert tokens.type == ResultType.ACTION, tokens.result
 
-# Store tokens.data["access_token"] for future calls
+# Store tokens.result.data["access_token"] securely and supply it as
+# context.auth["credentials"]["access_token"] for subsequent authenticated calls.
 ```
 
 ### Example 2: List Orders
@@ -240,7 +248,8 @@ result = await shopify_customer.execute_action("customer_list_orders", {
     "first": 5
 }, context)
 
-for order in result.data["orders"]:
+assert result.type == ResultType.ACTION, result.result
+for order in result.result.data["orders"]:
     print(f"Order {order['orderNumber']} - {order['totalPrice']['amount']} {order['totalPrice']['currencyCode']}")
 ```
 
@@ -254,28 +263,19 @@ new_addr = await shopify_customer.execute_action("customer_create_address", {
     "country": "US",
     "zip": "10001"
 }, context)
+assert new_addr.type == ResultType.ACTION, new_addr.result
 
 # Set as default
-await shopify_customer.execute_action("customer_set_default_address", {
-    "address_id": new_addr.data["address"]["id"]
+default_result = await shopify_customer.execute_action("customer_set_default_address", {
+    "address_id": new_addr.result.data["address"]["id"]
 }, context)
+assert default_result.type == ResultType.ACTION, default_result.result
 ```
 
 ## Testing
 
-To run the tests:
+Install HiveUp 2.5.4 from a Tooling local build as described in the root [contribution guide](../CONTRIBUTING.md). HiveUp isn't published to PyPI and isolates this integration's existing requirements. From the repository root, run the offline unit tests:
 
-1. Navigate to the integration's directory:
-   ```bash
-   cd shopify-customer
-   ```
-
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. Run the tests:
-   ```bash
-   python -m pytest tests/
-   ```
+```bash
+hiveup test shopify-customer
+```
