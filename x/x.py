@@ -33,10 +33,13 @@ FULL_TEXT_FIELDS = "note_tweet,article"
 
 
 def _with_full_text(post: Dict[str, Any]) -> Dict[str, Any]:
-    """Put the full text of a long post into `text`."""
-    note_text = (post.pop("note_tweet", None) or {}).get("text")
+    """Promote long-post text without discarding its other metadata."""
+    note_tweet = post.pop("note_tweet", None) or {}
+    note_text = note_tweet.pop("text", None)
     if note_text:
         post["text"] = note_text
+    if note_tweet:
+        post["note_tweet"] = note_tweet
     return post
 
 
