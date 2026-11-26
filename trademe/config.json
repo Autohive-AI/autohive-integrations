@@ -1,0 +1,322 @@
+{
+    "name": "Trade Me",
+    "version": "1.0.0",
+    "display_name": "Trade Me",
+    "description": "Read Trade Me account details and seller listings in the sandbox or production environment.",
+    "entry_point": "trademe.py",
+    "supports_billing": false,
+    "auth": {
+        "type": "custom",
+        "title": "Trade Me OAuth 1.0a credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "consumer_key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "format": "password",
+                    "label": "Consumer key",
+                    "help_text": "Use the consumer key for the selected Trade Me environment."
+                },
+                "consumer_secret": {
+                    "type": "string",
+                    "minLength": 1,
+                    "format": "password",
+                    "label": "Consumer secret",
+                    "help_text": "Use the consumer secret for the selected Trade Me environment."
+                },
+                "access_token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "format": "password",
+                    "label": "Access token",
+                    "help_text": "Use the access token for the selected Trade Me environment."
+                },
+                "access_token_secret": {
+                    "type": "string",
+                    "minLength": 1,
+                    "format": "password",
+                    "label": "Access token secret",
+                    "help_text": "Use the access token secret for the selected Trade Me environment."
+                },
+                "environment": {
+                    "type": "string",
+                    "enum": [
+                        "sandbox",
+                        "production"
+                    ],
+                    "default": "sandbox",
+                    "label": "Environment",
+                    "help_text": "Sandbox is the default. Production requires a separately approved application and credentials."
+                }
+            },
+            "required": [
+                "consumer_key",
+                "consumer_secret",
+                "access_token",
+                "access_token_secret"
+            ]
+        }
+    },
+    "actions": {
+        "get_profile": {
+            "display_name": "Get Profile",
+            "description": "Read the connected member account details and statistics. Requires MyTradeMeRead.",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "profile": {
+                        "type": "object",
+                        "description": "Trade Me member summary with provider field names."
+                    }
+                },
+                "required": [
+                    "profile"
+                ]
+            }
+        },
+        "list_selling_items": {
+            "display_name": "List Selling Items",
+            "description": "Read one page of the connected member's selling items. Requires MyTradeMeRead. Increase page to retrieve more items.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "filter": {
+                        "type": "string",
+                        "enum": [
+                            "All",
+                            "ClosingToday",
+                            "ListingsWithBids",
+                            "ReserveMet",
+                            "ReserveNotMet",
+                            "UnansweredQuestions"
+                        ],
+                        "default": "All",
+                        "description": "Trade Me filter for this list."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "default": 1,
+                        "description": "Page number, starting at 1."
+                    },
+                    "rows": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 50,
+                        "description": "Requested page size. This integration limits requests to 100 rows."
+                    }
+                },
+                "required": [],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Items with original Trade Me field names. Sold items represent sales and can repeat a listing ID."
+                    },
+                    "total_count": {
+                        "type": "integer",
+                        "description": "Total matching items reported by Trade Me."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page returned by Trade Me."
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "PageSize returned by Trade Me."
+                    }
+                },
+                "required": [
+                    "items",
+                    "total_count",
+                    "page",
+                    "page_size"
+                ]
+            }
+        },
+        "list_sold_items": {
+            "display_name": "List Sold Items",
+            "description": "Read one page of the connected member's sold items. Requires MyTradeMeRead. Increase page to retrieve more items.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "filter": {
+                        "type": "string",
+                        "enum": [
+                            "Last45Days",
+                            "Last30Days",
+                            "Last7Days",
+                            "Last3Days",
+                            "Last24Hours",
+                            "LastHour",
+                            "PaymentInstructionsToSend",
+                            "FeedbackToPlace",
+                            "EmailSent",
+                            "PaymentReceived",
+                            "GoodsShipped",
+                            "SaleCompleted"
+                        ],
+                        "default": "Last45Days",
+                        "description": "Trade Me filter for this list."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "default": 1,
+                        "description": "Page number, starting at 1."
+                    },
+                    "rows": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 50,
+                        "description": "Requested page size. This integration limits requests to 100 rows."
+                    }
+                },
+                "required": [],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Items with original Trade Me field names. Sold items represent sales and can repeat a listing ID."
+                    },
+                    "total_count": {
+                        "type": "integer",
+                        "description": "Total matching items reported by Trade Me."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page returned by Trade Me."
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "PageSize returned by Trade Me."
+                    }
+                },
+                "required": [
+                    "items",
+                    "total_count",
+                    "page",
+                    "page_size"
+                ]
+            }
+        },
+        "list_unsold_items": {
+            "display_name": "List Unsold Items",
+            "description": "Read one page of the connected member's unsold items. Requires MyTradeMeRead. Increase page to retrieve more items.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "filter": {
+                        "type": "string",
+                        "enum": [
+                            "Last45Days",
+                            "Last7Days",
+                            "Last24Hours",
+                            "LastHour",
+                            "ItemsIHaveOffered",
+                            "ItemsICanRelist"
+                        ],
+                        "default": "Last45Days",
+                        "description": "Trade Me filter for this list."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "default": 1,
+                        "description": "Page number, starting at 1."
+                    },
+                    "rows": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 50,
+                        "description": "Requested page size. This integration limits requests to 100 rows."
+                    }
+                },
+                "required": [],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Items with original Trade Me field names. Sold items represent sales and can repeat a listing ID."
+                    },
+                    "total_count": {
+                        "type": "integer",
+                        "description": "Total matching items reported by Trade Me."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page returned by Trade Me."
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "PageSize returned by Trade Me."
+                    }
+                },
+                "required": [
+                    "items",
+                    "total_count",
+                    "page",
+                    "page_size"
+                ]
+            }
+        },
+        "get_selling_listing": {
+            "display_name": "Get Selling Listing",
+            "description": "Read listing details in the seller editing format. The connected member must own the listing. Requires MyTradeMeRead.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "listing_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "ID of a listing owned by the connected member."
+                    }
+                },
+                "required": [
+                    "listing_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "listing": {
+                        "type": "object",
+                        "description": "Seller listing details with original Trade Me field names."
+                    }
+                },
+                "required": [
+                    "listing"
+                ]
+            }
+        }
+    }
+}
