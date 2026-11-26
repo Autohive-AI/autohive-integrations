@@ -78,7 +78,7 @@ inputs = {
         ORDER BY total DESC
         LIMIT 10
     """,
-    "max_results": 100
+    "max_results": 100,
 }
 
 result = await bigquery.execute_action("run_query", inputs, context)
@@ -91,11 +91,7 @@ for row in result.result.data["rows"]:
 ### Dry Run to Estimate Query Cost
 
 ```python
-inputs = {
-    "project_id": "my-gcp-project",
-    "query": "SELECT * FROM `my-dataset.large_table`",
-    "dry_run": True
-}
+inputs = {"project_id": "my-gcp-project", "query": "SELECT * FROM `my-dataset.large_table`", "dry_run": True}
 
 result = await bigquery.execute_action("run_query", inputs, context)
 assert result.type == ResultType.ACTION, result.result
@@ -112,10 +108,7 @@ inputs = {
     "dataset_id": "analytics_data",
     "location": "US",
     "description": "Analytics data warehouse",
-    "labels": {
-        "environment": "production",
-        "team": "data-engineering"
-    }
+    "labels": {"environment": "production", "team": "data-engineering"},
 }
 
 result = await bigquery.execute_action("create_dataset", inputs, context)
@@ -136,16 +129,11 @@ inputs = {
             {"name": "user_id", "type": "STRING", "mode": "REQUIRED"},
             {"name": "event_type", "type": "STRING", "mode": "NULLABLE"},
             {"name": "event_timestamp", "type": "TIMESTAMP", "mode": "REQUIRED"},
-            {"name": "properties", "type": "JSON", "mode": "NULLABLE"}
+            {"name": "properties", "type": "JSON", "mode": "NULLABLE"},
         ]
     },
-    "time_partitioning": {
-        "type": "DAY",
-        "field": "event_timestamp"
-    },
-    "clustering": {
-        "fields": ["user_id", "event_type"]
-    }
+    "time_partitioning": {"type": "DAY", "field": "event_timestamp"},
+    "clustering": {"fields": ["user_id", "event_type"]},
 }
 
 result = await bigquery.execute_action("create_table", inputs, context)
@@ -164,15 +152,15 @@ inputs = {
             "event_id": "evt_001",
             "user_id": "user_123",
             "event_type": "page_view",
-            "event_timestamp": "2024-01-15T10:30:00Z"
+            "event_timestamp": "2024-01-15T10:30:00Z",
         },
         {
             "event_id": "evt_002",
             "user_id": "user_456",
             "event_type": "purchase",
-            "event_timestamp": "2024-01-15T10:31:00Z"
-        }
-    ]
+            "event_timestamp": "2024-01-15T10:31:00Z",
+        },
+    ],
 }
 
 result = await bigquery.execute_action("insert_rows", inputs, context)
@@ -184,11 +172,7 @@ print(f"Inserted {result.result.data['inserted_count']} rows")
 
 ```python
 # Initial query
-inputs = {
-    "project_id": "my-gcp-project",
-    "query": "SELECT * FROM `my-dataset.large_table`",
-    "max_results": 1000
-}
+inputs = {"project_id": "my-gcp-project", "query": "SELECT * FROM `my-dataset.large_table`", "max_results": 1000}
 
 result = await bigquery.execute_action("run_query", inputs, context)
 assert result.type == ResultType.ACTION, result.result
@@ -203,12 +187,9 @@ while not data["job_complete"] or data.get("page_token"):
         page_inputs["page_token"] = data["page_token"]
     if not data["job_complete"]:
         import asyncio
+
         await asyncio.sleep(1)
-    result = await bigquery.execute_action(
-        "get_query_results",
-        page_inputs,
-        context
-    )
+    result = await bigquery.execute_action("get_query_results", page_inputs, context)
     assert result.type == ResultType.ACTION, result.result
     data = result.result.data
     all_rows.extend(data["rows"])
@@ -220,11 +201,7 @@ print(f"Total rows retrieved: {len(all_rows)}")
 
 ```python
 # List recent jobs
-inputs = {
-    "project_id": "my-gcp-project",
-    "max_results": 10,
-    "state_filter": "running"
-}
+inputs = {"project_id": "my-gcp-project", "max_results": 10, "state_filter": "running"}
 
 result = await bigquery.execute_action("list_jobs", inputs, context)
 assert result.type == ResultType.ACTION, result.result

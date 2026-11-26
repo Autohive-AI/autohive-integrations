@@ -74,7 +74,7 @@ Run these fragments inside an async function. `integration` must be the register
 result = await integration.execute_action("get_available_connections", {}, context)
 
 assert result.type == ResultType.ACTION, result.result
-for company in result.result.data['companies']:
+for company in result.result.data["companies"]:
     print(f"Tenant ID: {company['tenant_id']}")
     print(f"Company Name: {company['company_name']}")
 ```
@@ -82,10 +82,9 @@ for company in result.result.data['companies']:
 ### Find Contact
 ```python
 # Search for contacts by name using tenant ID
-result = await integration.execute_action("find_contact_by_name", {
-    "tenant_id": "tenant-guid-123",
-    "contact_name": "ABC Suppliers"
-}, context)
+result = await integration.execute_action(
+    "find_contact_by_name", {"tenant_id": "tenant-guid-123", "contact_name": "ABC Suppliers"}, context
+)
 
 assert result.type == ResultType.ACTION, result.result
 for contact in result.result.data["contacts"]:
@@ -95,11 +94,11 @@ for contact in result.result.data["contacts"]:
 ### Get Aged Payables Report
 ```python
 # Get aged payables for a specific contact using tenant ID
-result = await integration.execute_action("get_aged_payables", {
-    "tenant_id": "tenant-guid-123",
-    "contact_id": "contact-guid-456",
-    "date": "2025-01-31"
-}, context)
+result = await integration.execute_action(
+    "get_aged_payables",
+    {"tenant_id": "tenant-guid-123", "contact_id": "contact-guid-456", "date": "2025-01-31"},
+    context,
+)
 
 assert result.type == ResultType.ACTION, result.result
 for report in result.result.data["Reports"]:
@@ -109,22 +108,25 @@ for report in result.result.data["Reports"]:
 ### Get Invoices
 ```python
 # Get all authorized invoices for a specific date range using tenant ID
-result = await integration.execute_action("get_invoices", {
-    "tenant_id": "tenant-guid-123",
-    "where": "Status==\"AUTHORISED\" AND Date>=DateTime(2025,01,01)",
-    "order": "Date DESC",
-    "pageSize": 50
-}, context)
+result = await integration.execute_action(
+    "get_invoices",
+    {
+        "tenant_id": "tenant-guid-123",
+        "where": 'Status=="AUTHORISED" AND Date>=DateTime(2025,01,01)',
+        "order": "Date DESC",
+        "pageSize": 50,
+    },
+    context,
+)
 
 assert result.type == ResultType.ACTION, result.result
 for invoice in result.result.data["Invoices"]:
     print(f"Invoice: {invoice['InvoiceNumber']} - {invoice['Total']} - {invoice['Contact']['Name']}")
 
 # Get a specific invoice by ID
-result = await integration.execute_action("get_invoices", {
-    "tenant_id": "tenant-guid-123",
-    "invoice_id": "243216c5-369e-4056-ac67-05388f86dc81"
-}, context)
+result = await integration.execute_action(
+    "get_invoices", {"tenant_id": "tenant-guid-123", "invoice_id": "243216c5-369e-4056-ac67-05388f86dc81"}, context
+)
 
 assert result.type == ResultType.ACTION, result.result
 invoice = result.result.data["Invoices"][0]
@@ -134,10 +136,9 @@ print(f"Invoice Details: {invoice['InvoiceNumber']} - Status: {invoice['Status']
 ### Get Invoice as PDF
 ```python
 # Download a specific invoice as PDF using tenant ID and invoice ID
-result = await integration.execute_action("get_invoice_pdf", {
-    "tenant_id": "tenant-guid-123",
-    "invoice_id": "243216c5-369e-4056-ac67-05388f86dc81"
-}, context)
+result = await integration.execute_action(
+    "get_invoice_pdf", {"tenant_id": "tenant-guid-123", "invoice_id": "243216c5-369e-4056-ac67-05388f86dc81"}, context
+)
 
 assert result.type == ResultType.ACTION, result.result
 pdf_file = result.result.data["file"]
@@ -146,24 +147,24 @@ print(f"Content Type: {pdf_file['contentType']}")
 
 # Save the PDF to disk
 import base64
-pdf_bytes = base64.b64decode(pdf_file['content'])
-with open(pdf_file['name'], 'wb') as f:
+
+pdf_bytes = base64.b64decode(pdf_file["content"])
+with open(pdf_file["name"], "wb") as f:
     f.write(pdf_bytes)
 print(f"Saved to {pdf_file['name']}")
 
 # Example: Download multiple overdue invoices as PDFs
-overdue_result = await integration.execute_action("get_invoices", {
-    "tenant_id": "tenant-guid-123",
-    "where": "Status==\"AUTHORISED\" AND DueDate<DateTime.Today",
-    "pageSize": 10
-}, context)
+overdue_result = await integration.execute_action(
+    "get_invoices",
+    {"tenant_id": "tenant-guid-123", "where": 'Status=="AUTHORISED" AND DueDate<DateTime.Today', "pageSize": 10},
+    context,
+)
 
 assert overdue_result.type == ResultType.ACTION, overdue_result.result
 for invoice in overdue_result.result.data["Invoices"]:
-    pdf_result = await integration.execute_action("get_invoice_pdf", {
-        "tenant_id": "tenant-guid-123",
-        "invoice_id": invoice["InvoiceID"]
-    }, context)
+    pdf_result = await integration.execute_action(
+        "get_invoice_pdf", {"tenant_id": "tenant-guid-123", "invoice_id": invoice["InvoiceID"]}, context
+    )
     assert pdf_result.type == ResultType.ACTION, pdf_result.result
     print(f"Downloaded PDF for invoice {invoice['InvoiceNumber']}")
 ```
@@ -171,11 +172,9 @@ for invoice in overdue_result.result.data["Invoices"]:
 ### Get Balance Sheet
 ```python
 # Get current balance sheet with 3-month comparison using tenant ID
-result = await integration.execute_action("get_balance_sheet", {
-    "tenant_id": "tenant-guid-123",
-    "date": "2025-01-31",
-    "periods": 3
-}, context)
+result = await integration.execute_action(
+    "get_balance_sheet", {"tenant_id": "tenant-guid-123", "date": "2025-01-31", "periods": 3}, context
+)
 
 assert result.type == ResultType.ACTION, result.result
 for report in result.result.data["Reports"]:
@@ -185,13 +184,17 @@ for report in result.result.data["Reports"]:
 ### Get Profit & Loss Statement
 ```python
 # Get P&L for specific date range using tenant ID
-result = await integration.execute_action("get_profit_and_loss", {
-    "tenant_id": "tenant-guid-123",
-    "from_date": "2025-01-01",
-    "to_date": "2025-01-31",
-    "timeframe": "MONTH",
-    "periods": 3
-}, context)
+result = await integration.execute_action(
+    "get_profit_and_loss",
+    {
+        "tenant_id": "tenant-guid-123",
+        "from_date": "2025-01-01",
+        "to_date": "2025-01-31",
+        "timeframe": "MONTH",
+        "periods": 3,
+    },
+    context,
+)
 
 assert result.type == ResultType.ACTION, result.result
 for report in result.result.data["Reports"]:
@@ -201,11 +204,9 @@ for report in result.result.data["Reports"]:
 ### Get Accounts
 ```python
 # Get chart of accounts for line item classification using tenant ID
-result = await integration.execute_action("get_accounts", {
-    "tenant_id": "tenant-guid-123",
-    "where": "Status==\"ACTIVE\"",
-    "order": "Code ASC"
-}, context)
+result = await integration.execute_action(
+    "get_accounts", {"tenant_id": "tenant-guid-123", "where": 'Status=="ACTIVE"', "order": "Code ASC"}, context
+)
 
 assert result.type == ResultType.ACTION, result.result
 for account in result.result.data["Accounts"]:
@@ -215,11 +216,15 @@ for account in result.result.data["Accounts"]:
 ### Get Payments
 ```python
 # Get payment records with date filtering using tenant ID
-result = await integration.execute_action("get_payments", {
-    "tenant_id": "tenant-guid-123",
-    "where": "Date>=DateTime(2025,01,01) AND Date<=DateTime(2025,01,31)",
-    "order": "Date DESC"
-}, context)
+result = await integration.execute_action(
+    "get_payments",
+    {
+        "tenant_id": "tenant-guid-123",
+        "where": "Date>=DateTime(2025,01,01) AND Date<=DateTime(2025,01,31)",
+        "order": "Date DESC",
+    },
+    context,
+)
 
 assert result.type == ResultType.ACTION, result.result
 for payment in result.result.data["Payments"]:
@@ -229,12 +234,11 @@ for payment in result.result.data["Payments"]:
 ### Get Bank Transactions
 ```python
 # Get bank transactions not tied to invoices using tenant ID
-result = await integration.execute_action("get_bank_transactions", {
-    "tenant_id": "tenant-guid-123",
-    "where": "Date>=DateTime(2025,01,01)",
-    "order": "Date DESC",
-    "page": 1
-}, context)
+result = await integration.execute_action(
+    "get_bank_transactions",
+    {"tenant_id": "tenant-guid-123", "where": "Date>=DateTime(2025,01,01)", "order": "Date DESC", "page": 1},
+    context,
+)
 
 assert result.type == ResultType.ACTION, result.result
 for transaction in result.result.data["BankTransactions"]:
@@ -244,20 +248,26 @@ for transaction in result.result.data["BankTransactions"]:
 ### Create Sales Invoice
 ```python
 # Create a new sales invoice using tenant ID
-result = await integration.execute_action("create_sales_invoice", {
-    "tenant_id": "tenant-guid-123",
-    "contact": {"ContactID": "contact-guid-456"},
-    "line_items": [{
-        "Description": "Consulting Services",
-        "Quantity": 5,
-        "UnitAmount": 150.00,
-        "AccountCode": "200",
-        "TaxType": "OUTPUT"
-    }],
-    "date": "2025-01-31",
-    "due_date": "2025-02-28",
-    "status": "DRAFT"
-}, context)
+result = await integration.execute_action(
+    "create_sales_invoice",
+    {
+        "tenant_id": "tenant-guid-123",
+        "contact": {"ContactID": "contact-guid-456"},
+        "line_items": [
+            {
+                "Description": "Consulting Services",
+                "Quantity": 5,
+                "UnitAmount": 150.00,
+                "AccountCode": "200",
+                "TaxType": "OUTPUT",
+            }
+        ],
+        "date": "2025-01-31",
+        "due_date": "2025-02-28",
+        "status": "DRAFT",
+    },
+    context,
+)
 
 assert result.type == ResultType.ACTION, result.result
 invoice = result.result.data["Invoices"][0]
@@ -267,20 +277,26 @@ print(f"Created Invoice: {invoice['InvoiceNumber']} - Total: {invoice['Total']}"
 ### Create Purchase Bill
 ```python
 # Create a new purchase bill using tenant ID
-result = await integration.execute_action("create_purchase_bill", {
-    "tenant_id": "tenant-guid-123",
-    "contact": {"ContactID": "supplier-guid-789"},
-    "line_items": [{
-        "Description": "Office Supplies",
-        "Quantity": 1,
-        "UnitAmount": 250.00,
-        "AccountCode": "400",
-        "TaxType": "INPUT"
-    }],
-    "date": "2025-01-31",
-    "invoice_number": "SUPP-001",
-    "status": "AUTHORISED"
-}, context)
+result = await integration.execute_action(
+    "create_purchase_bill",
+    {
+        "tenant_id": "tenant-guid-123",
+        "contact": {"ContactID": "supplier-guid-789"},
+        "line_items": [
+            {
+                "Description": "Office Supplies",
+                "Quantity": 1,
+                "UnitAmount": 250.00,
+                "AccountCode": "400",
+                "TaxType": "INPUT",
+            }
+        ],
+        "date": "2025-01-31",
+        "invoice_number": "SUPP-001",
+        "status": "AUTHORISED",
+    },
+    context,
+)
 
 assert result.type == ResultType.ACTION, result.result
 bill = result.result.data["Invoices"][0]
@@ -294,18 +310,18 @@ import base64
 
 # Read file and encode to base64
 with open("receipt.pdf", "rb") as f:
-    file_content = base64.b64encode(f.read()).decode('utf-8')
+    file_content = base64.b64encode(f.read()).decode("utf-8")
 
-result = await integration.execute_action("attach_file_to_invoice", {
-    "tenant_id": "tenant-guid-123",
-    "invoice_id": "invoice-guid-456",
-    "file": {
-        "content": file_content,
-        "name": "receipt.pdf",
-        "contentType": "application/pdf"
+result = await integration.execute_action(
+    "attach_file_to_invoice",
+    {
+        "tenant_id": "tenant-guid-123",
+        "invoice_id": "invoice-guid-456",
+        "file": {"content": file_content, "name": "receipt.pdf", "contentType": "application/pdf"},
+        "include_online": True,
     },
-    "include_online": True
-}, context)
+    context,
+)
 
 assert result.type == ResultType.ACTION, result.result
 attachment = result.result.data["Attachments"][0]
@@ -315,11 +331,9 @@ print(f"Attached file: {attachment['FileName']} - Size: {attachment['ContentLeng
 ### Get Attachments List
 ```python
 # Get all attachments for an invoice using tenant ID
-result = await integration.execute_action("get_attachments", {
-    "tenant_id": "tenant-guid-123",
-    "endpoint": "Invoices",
-    "guid": "invoice-guid-456"
-}, context)
+result = await integration.execute_action(
+    "get_attachments", {"tenant_id": "tenant-guid-123", "endpoint": "Invoices", "guid": "invoice-guid-456"}, context
+)
 
 assert result.type == ResultType.ACTION, result.result
 for attachment in result.result.data["Attachments"]:
@@ -329,12 +343,11 @@ for attachment in result.result.data["Attachments"]:
 ### Download Attachment Content
 ```python
 # Download the actual file content of an attachment using tenant ID
-result = await integration.execute_action("get_attachment_content", {
-    "tenant_id": "tenant-guid-123",
-    "endpoint": "Invoices",
-    "guid": "invoice-guid-456",
-    "file_name": "receipt.pdf"
-}, context)
+result = await integration.execute_action(
+    "get_attachment_content",
+    {"tenant_id": "tenant-guid-123", "endpoint": "Invoices", "guid": "invoice-guid-456", "file_name": "receipt.pdf"},
+    context,
+)
 
 assert result.type == ResultType.ACTION, result.result
 file_data = result.result.data["file"]
@@ -345,22 +358,25 @@ print(f"Downloaded: {file_data['name']} - Content Type: {file_data['contentType'
 ### Get Purchase Orders
 ```python
 # Get all authorized purchase orders for a specific date range using tenant ID
-result = await integration.execute_action("get_purchase_orders", {
-    "tenant_id": "tenant-guid-123",
-    "where": "Status==\"AUTHORISED\" AND Date>=DateTime(2025,01,01)",
-    "order": "Date DESC",
-    "page": 1
-}, context)
+result = await integration.execute_action(
+    "get_purchase_orders",
+    {
+        "tenant_id": "tenant-guid-123",
+        "where": 'Status=="AUTHORISED" AND Date>=DateTime(2025,01,01)',
+        "order": "Date DESC",
+        "page": 1,
+    },
+    context,
+)
 
 assert result.type == ResultType.ACTION, result.result
 for po in result.result.data["PurchaseOrders"]:
     print(f"PO: {po['PurchaseOrderNumber']} - {po['Total']} - {po['Contact']['Name']}")
 
 # Get a specific purchase order by ID
-result = await integration.execute_action("get_purchase_orders", {
-    "tenant_id": "tenant-guid-123",
-    "purchase_order_id": "po-guid-456"
-}, context)
+result = await integration.execute_action(
+    "get_purchase_orders", {"tenant_id": "tenant-guid-123", "purchase_order_id": "po-guid-456"}, context
+)
 
 assert result.type == ResultType.ACTION, result.result
 po = result.result.data["PurchaseOrders"][0]
@@ -370,25 +386,31 @@ print(f"PO Details: {po['PurchaseOrderNumber']} - Status: {po['Status']}")
 ### Create Purchase Order
 ```python
 # Create a new purchase order using tenant ID
-result = await integration.execute_action("create_purchase_order", {
-    "tenant_id": "tenant-guid-123",
-    "contact": {"ContactID": "supplier-guid-789"},
-    "line_items": [{
-        "Description": "Office Equipment",
-        "Quantity": 2,
-        "UnitAmount": 500.00,
-        "AccountCode": "630",
-        "TaxType": "INPUT"
-    }],
-    "date": "2025-01-31",
-    "delivery_date": "2025-02-15",
-    "reference": "PO-2025-001",
-    "status": "DRAFT",
-    "delivery_address": "123 Main St, City, State 12345",
-    "attention_to": "John Smith",
-    "telephone": "+1-555-0123",
-    "delivery_instructions": "Please call before delivery"
-}, context)
+result = await integration.execute_action(
+    "create_purchase_order",
+    {
+        "tenant_id": "tenant-guid-123",
+        "contact": {"ContactID": "supplier-guid-789"},
+        "line_items": [
+            {
+                "Description": "Office Equipment",
+                "Quantity": 2,
+                "UnitAmount": 500.00,
+                "AccountCode": "630",
+                "TaxType": "INPUT",
+            }
+        ],
+        "date": "2025-01-31",
+        "delivery_date": "2025-02-15",
+        "reference": "PO-2025-001",
+        "status": "DRAFT",
+        "delivery_address": "123 Main St, City, State 12345",
+        "attention_to": "John Smith",
+        "telephone": "+1-555-0123",
+        "delivery_instructions": "Please call before delivery",
+    },
+    context,
+)
 
 assert result.type == ResultType.ACTION, result.result
 po = result.result.data["PurchaseOrders"][0]
@@ -398,13 +420,17 @@ print(f"Created PO: {po['PurchaseOrderNumber']} - Total: {po['Total']}")
 ### Update Purchase Order
 ```python
 # Update an existing purchase order using tenant ID
-result = await integration.execute_action("update_purchase_order", {
-    "tenant_id": "tenant-guid-123",
-    "purchase_order_id": "po-guid-456",
-    "status": "AUTHORISED",
-    "reference": "PO-2025-001-UPDATED",
-    "delivery_date": "2025-02-20"
-}, context)
+result = await integration.execute_action(
+    "update_purchase_order",
+    {
+        "tenant_id": "tenant-guid-123",
+        "purchase_order_id": "po-guid-456",
+        "status": "AUTHORISED",
+        "reference": "PO-2025-001-UPDATED",
+        "delivery_date": "2025-02-20",
+    },
+    context,
+)
 
 assert result.type == ResultType.ACTION, result.result
 po = result.result.data["PurchaseOrders"][0]
@@ -414,11 +440,15 @@ print(f"Updated PO: {po['PurchaseOrderNumber']} - Status: {po['Status']}")
 ### Add Note to Purchase Order
 ```python
 # Add a note to a purchase order's history using tenant ID
-result = await integration.execute_action("add_note_to_purchase_order", {
-    "tenant_id": "tenant-guid-123",
-    "purchase_order_id": "po-guid-456",
-    "note": "Supplier confirmed delivery date. Items will arrive on Feb 20th."
-}, context)
+result = await integration.execute_action(
+    "add_note_to_purchase_order",
+    {
+        "tenant_id": "tenant-guid-123",
+        "purchase_order_id": "po-guid-456",
+        "note": "Supplier confirmed delivery date. Items will arrive on Feb 20th.",
+    },
+    context,
+)
 
 assert result.type == ResultType.ACTION, result.result
 history = result.result.data["HistoryRecords"][0]
@@ -428,10 +458,9 @@ print(f"Added note: {history['Details']}")
 ### Get Purchase Order History
 ```python
 # Get history and notes for a purchase order using tenant ID
-result = await integration.execute_action("get_purchase_order_history", {
-    "tenant_id": "tenant-guid-123",
-    "purchase_order_id": "po-guid-456"
-}, context)
+result = await integration.execute_action(
+    "get_purchase_order_history", {"tenant_id": "tenant-guid-123", "purchase_order_id": "po-guid-456"}, context
+)
 
 assert result.type == ResultType.ACTION, result.result
 for record in result.result.data["HistoryRecords"]:
@@ -441,10 +470,9 @@ for record in result.result.data["HistoryRecords"]:
 ### Delete Purchase Order
 ```python
 # Delete a purchase order by setting status to DELETED using tenant ID
-result = await integration.execute_action("delete_purchase_order", {
-    "tenant_id": "tenant-guid-123",
-    "purchase_order_id": "po-guid-456"
-}, context)
+result = await integration.execute_action(
+    "delete_purchase_order", {"tenant_id": "tenant-guid-123", "purchase_order_id": "po-guid-456"}, context
+)
 
 assert result.type == ResultType.ACTION, result.result
 po = result.result.data["PurchaseOrders"][0]

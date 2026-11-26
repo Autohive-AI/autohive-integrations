@@ -220,22 +220,27 @@ Run these fragments inside an async function with the registered `shopify_custom
 ### Example 1: OAuth Flow (Simplified)
 ```python
 # 1. Generate URL
-auth_data = await shopify_customer.execute_action("customer_generate_oauth_url", {
-    "client_id": "your_client_id",
-    "redirect_uri": "https://yourapp.com/callback"
-}, context)
+auth_data = await shopify_customer.execute_action(
+    "customer_generate_oauth_url",
+    {"client_id": "your_client_id", "redirect_uri": "https://yourapp.com/callback"},
+    context,
+)
 assert auth_data.type == ResultType.ACTION, auth_data.result
 
 # Redirect to auth_data.result.data["authorization_url"]. Store the state and
 # code_verifier securely. Verify the callback state before exchanging its code.
 
 # 2. Exchange Code
-tokens = await shopify_customer.execute_action("customer_exchange_code", {
-    "code": "received_auth_code",
-    "code_verifier": auth_data.result.data["code_verifier"],
-    "redirect_uri": "https://yourapp.com/callback",
-    "client_id": "your_client_id"
-}, context)
+tokens = await shopify_customer.execute_action(
+    "customer_exchange_code",
+    {
+        "code": "received_auth_code",
+        "code_verifier": auth_data.result.data["code_verifier"],
+        "redirect_uri": "https://yourapp.com/callback",
+        "client_id": "your_client_id",
+    },
+    context,
+)
 assert tokens.type == ResultType.ACTION, tokens.result
 
 # Store tokens.result.data["access_token"] securely and supply it as
@@ -244,9 +249,7 @@ assert tokens.type == ResultType.ACTION, tokens.result
 
 ### Example 2: List Orders
 ```python
-result = await shopify_customer.execute_action("customer_list_orders", {
-    "first": 5
-}, context)
+result = await shopify_customer.execute_action("customer_list_orders", {"first": 5}, context)
 
 assert result.type == ResultType.ACTION, result.result
 for order in result.result.data["orders"]:
@@ -256,19 +259,17 @@ for order in result.result.data["orders"]:
 ### Example 3: Update Default Address
 ```python
 # Create new address
-new_addr = await shopify_customer.execute_action("customer_create_address", {
-    "address1": "123 New St",
-    "city": "New York",
-    "province": "NY",
-    "country": "US",
-    "zip": "10001"
-}, context)
+new_addr = await shopify_customer.execute_action(
+    "customer_create_address",
+    {"address1": "123 New St", "city": "New York", "province": "NY", "country": "US", "zip": "10001"},
+    context,
+)
 assert new_addr.type == ResultType.ACTION, new_addr.result
 
 # Set as default
-default_result = await shopify_customer.execute_action("customer_set_default_address", {
-    "address_id": new_addr.result.data["address"]["id"]
-}, context)
+default_result = await shopify_customer.execute_action(
+    "customer_set_default_address", {"address_id": new_addr.result.data["address"]["id"]}, context
+)
 assert default_result.type == ResultType.ACTION, default_result.result
 ```
 

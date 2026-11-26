@@ -49,10 +49,9 @@ Run these fragments inside an async function. `integration` must be the register
 ### List All Dashboards
 ```python
 # Get all available dashboards
-result = await integration.execute_action("list_dashboards", {
-    "fields": "id,title,description,created_at",
-    "per_page": 50
-}, context)
+result = await integration.execute_action(
+    "list_dashboards", {"fields": "id,title,description,created_at", "per_page": 50}, context
+)
 
 assert result.type == ResultType.ACTION, result.result
 for dashboard in result.result.data["dashboards"]:
@@ -62,10 +61,9 @@ for dashboard in result.result.data["dashboards"]:
 ### Get Dashboard Details
 ```python
 # Get detailed information about a specific dashboard
-result = await integration.execute_action("get_dashboard", {
-    "dashboard_id": "123",
-    "fields": "id,title,description,dashboard_elements"
-}, context)
+result = await integration.execute_action(
+    "get_dashboard", {"dashboard_id": "123", "fields": "id,title,description,dashboard_elements"}, context
+)
 
 assert result.type == ResultType.ACTION, result.result
 dashboard = result.result.data["dashboard"]
@@ -76,20 +74,23 @@ print(f"Elements: {len(dashboard['dashboard_elements'])}")
 ### Execute LookML Query
 ```python
 # Run a query against a Looker model
-result = await integration.execute_action("execute_lookml_query", {
-    "model": "sales_analytics",
-    "explore": "orders",
-    "dimensions": ["orders.status", "orders.created_date"],
-    "measures": ["orders.count", "orders.total_amount"],
-    "filters": {
-        "orders.created_date": "30 days ago for 30 days"
+result = await integration.execute_action(
+    "execute_lookml_query",
+    {
+        "model": "sales_analytics",
+        "explore": "orders",
+        "dimensions": ["orders.status", "orders.created_date"],
+        "measures": ["orders.count", "orders.total_amount"],
+        "filters": {"orders.created_date": "30 days ago for 30 days"},
+        "sorts": ["orders.created_date desc"],
+        "limit": 1000,
+        "result_format": "json",
     },
-    "sorts": ["orders.created_date desc"],
-    "limit": 1000,
-    "result_format": "json"
-}, context)
+    context,
+)
 
 import json
+
 assert result.type == ResultType.ACTION, result.result
 query_data = json.loads(result.result.data["query_results"])
 for row in query_data:
@@ -99,8 +100,10 @@ for row in query_data:
 ### Execute SQL Query
 ```python
 # Run raw SQL against a connected database
-result = await integration.execute_action("execute_sql_query", {
-    "sql": """
+result = await integration.execute_action(
+    "execute_sql_query",
+    {
+        "sql": """
         SELECT 
             status,
             COUNT(*) as order_count,
@@ -110,11 +113,14 @@ result = await integration.execute_action("execute_sql_query", {
         GROUP BY status
         ORDER BY total_revenue DESC
     """,
-    "connection_name": "production_warehouse",
-    "result_format": "json"
-}, context)
+        "connection_name": "production_warehouse",
+        "result_format": "json",
+    },
+    context,
+)
 
 import json
+
 assert result.type == ResultType.ACTION, result.result
 sql_data = json.loads(result.result.data["query_results"])
 for row in sql_data:
@@ -124,20 +130,17 @@ for row in sql_data:
 ### List Models and Explores
 ```python
 # Get all available models
-models_result = await integration.execute_action("list_models", {
-    "fields": "name,label,explores"
-}, context)
+models_result = await integration.execute_action("list_models", {"fields": "name,label,explores"}, context)
 
 assert models_result.type == ResultType.ACTION, models_result.result
 for model in models_result.result.data["models"]:
     print(f"Model: {model['name']} ({model['label']})")
-    
+
     # Get detailed model information
-    model_detail = await integration.execute_action("get_model", {
-        "model_name": model['name'],
-        "fields": "name,explores.name,explores.label"
-    }, context)
-    
+    model_detail = await integration.execute_action(
+        "get_model", {"model_name": model["name"], "fields": "name,explores.name,explores.label"}, context
+    )
+
     assert model_detail.type == ResultType.ACTION, model_detail.result
     for explore in model_detail.result.data["model"]["explores"]:
         print(f"  - Explore: {explore['name']} ({explore['label']})")

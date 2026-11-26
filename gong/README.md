@@ -42,11 +42,9 @@ Run these fragments inside an async function. `integration` must be the register
 ### List Recent Calls
 ```python
 # Get calls in a specified date range
-result = await integration.execute_action("list_calls", {
-    "from_date": "2025-01-01",
-    "to_date": "2025-01-31",
-    "limit": 50
-}, context)
+result = await integration.execute_action(
+    "list_calls", {"from_date": "2025-01-01", "to_date": "2025-01-31", "limit": 50}, context
+)
 
 assert result.type == ResultType.ACTION, result.result
 for call in result.result.data["calls"]:
@@ -56,9 +54,7 @@ for call in result.result.data["calls"]:
 ### Get Call Transcript
 ```python
 # Get detailed transcript for a specific call
-result = await integration.execute_action("get_call_transcript", {
-    "call_id": "call_123456"
-}, context)
+result = await integration.execute_action("get_call_transcript", {"call_id": "call_123456"}, context)
 
 assert result.type == ResultType.ACTION, result.result
 for segment in result.result.data["transcript"]:
@@ -68,11 +64,9 @@ for segment in result.result.data["transcript"]:
 ### Search Calls
 ```python
 # Search for calls containing specific keywords
-result = await integration.execute_action("search_calls", {
-    "query": "product demo pricing",
-    "from_date": "2025-01-01",
-    "limit": 25
-}, context)
+result = await integration.execute_action(
+    "search_calls", {"query": "product demo pricing", "from_date": "2025-01-01", "limit": 25}, context
+)
 
 assert result.type == ResultType.ACTION, result.result
 for call in result.result.data["results"]:

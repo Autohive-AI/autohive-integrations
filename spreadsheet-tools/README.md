@@ -32,13 +32,17 @@ import base64
 
 # Use actual base64 file content, not a placeholder string.
 csv_bytes = b"Name,Age,Email\nJohn Doe,30,john@example.com\nJane Smith,25,jane@example.com\n"
-result = await integration.execute_action("convert_to_json", {
-    "file": {
-        "content": base64.b64encode(csv_bytes).decode("ascii"),
-        "name": "sales_data.csv",
-        "contentType": "text/csv"
-    }
-}, context)
+result = await integration.execute_action(
+    "convert_to_json",
+    {
+        "file": {
+            "content": base64.b64encode(csv_bytes).decode("ascii"),
+            "name": "sales_data.csv",
+            "contentType": "text/csv",
+        }
+    },
+    context,
+)
 
 assert result.type == ResultType.ACTION, result.result
 # The action payload contains a JSON file with converted data.
