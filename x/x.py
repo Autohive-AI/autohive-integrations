@@ -26,6 +26,19 @@ X_MEDIA_UPLOAD_URL = "https://api.x.com/2/media/upload"
 SEARCH_POST_COST_USD = 5 / 1000
 SEARCH_USER_PROFILE_COST_USD = 10 / 1000
 
+# X returns only the first 280 characters of a long post in `text`. The full
+# text is in `note_tweet`, and the body of an X Article is in `article`.
+# Fields do not add cost, so request them on every post read.
+FULL_TEXT_FIELDS = "note_tweet,article"
+
+
+def _with_full_text(post: Dict[str, Any]) -> Dict[str, Any]:
+    """Put the full text of a long post into `text`."""
+    note_text = (post.pop("note_tweet", None) or {}).get("text")
+    if note_text:
+        post["text"] = note_text
+    return post
+
 
 async def _resolve_authenticated_user_id(context: ExecutionContext) -> str:
     response = await context.fetch(f"{X_API_BASE_URL}/users/me", method="GET")
@@ -243,7 +256,7 @@ class GetTweetAction(ActionHandler):
             post_id = inputs["post_id"]
             params = {}
             expansions = []
-            tweet_fields = ["created_at", "public_metrics", "author_id", "conversation_id"]
+            tweet_fields = ["created_at", "public_metrics", "author_id", "conversation_id", FULL_TEXT_FIELDS]
 
             if inputs.get("include_user"):
                 expansions.append("author_id")
@@ -261,7 +274,10 @@ class GetTweetAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"post": response.data.get("data", {}), "includes": response.data.get("includes", {})},
+                data={
+                    "post": _with_full_text(response.data.get("data", {})),
+                    "includes": response.data.get("includes", {}),
+                },
                 cost_usd=0.0,
             )
 
@@ -292,7 +308,7 @@ class SearchTweetsAction(ActionHandler):
         try:
             params = {
                 "query": inputs["query"],
-                "tweet.fields": "created_at,public_metrics,author_id,conversation_id,lang",
+                "tweet.fields": f"created_at,public_metrics,author_id,conversation_id,lang,{FULL_TEXT_FIELDS}",
                 "expansions": "author_id",
                 "user.fields": "username,name,verified",
             }
@@ -309,7 +325,7 @@ class SearchTweetsAction(ActionHandler):
             response = await context.fetch(f"{X_API_BASE_URL}/tweets/search/recent", method="GET", params=params)
             body = response.data
 
-            posts = body.get("data") or []
+            posts = [_with_full_text(post) for post in body.get("data") or []]
             includes = body.get("includes") or {}
             users = includes.get("users") or []
             cost_usd = len(posts) * SEARCH_POST_COST_USD + len(users) * SEARCH_USER_PROFILE_COST_USD
@@ -339,7 +355,7 @@ class GetUserTweetsAction(ActionHandler):
         try:
             user_id = inputs["user_id"]
             params = {
-                "tweet.fields": "created_at,public_metrics,conversation_id",
+                "tweet.fields": f"created_at,public_metrics,conversation_id,{FULL_TEXT_FIELDS}",
                 "max_results": inputs.get("max_results", 10),
             }
 
@@ -357,7 +373,11 @@ class GetUserTweetsAction(ActionHandler):
             response = await context.fetch(f"{X_API_BASE_URL}/users/{user_id}/tweets", method="GET", params=params)
 
             return ActionResult(
-                data={"posts": response.data.get("data", []), "meta": response.data.get("meta", {})}, cost_usd=0.0
+                data={
+                    "posts": [_with_full_text(post) for post in response.data.get("data", [])],
+                    "meta": response.data.get("meta", {}),
+                },
+                cost_usd=0.0,
             )
 
         except Exception as e:
@@ -372,7 +392,7 @@ class GetLikedTweetsAction(ActionHandler):
         try:
             user_id = inputs["user_id"]
             params = {
-                "tweet.fields": "created_at,public_metrics,author_id",
+                "tweet.fields": f"created_at,public_metrics,author_id,{FULL_TEXT_FIELDS}",
                 "expansions": "author_id",
                 "user.fields": "username,name,verified",
                 "max_results": inputs.get("max_results", 10),
@@ -387,7 +407,7 @@ class GetLikedTweetsAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "posts": response.data.get("data", []),
+                    "posts": [_with_full_text(post) for post in response.data.get("data", [])],
                     "includes": response.data.get("includes", {}),
                     "meta": response.data.get("meta", {}),
                 },
@@ -408,7 +428,7 @@ class GetBookmarksAction(ActionHandler):
             if not user_id or str(user_id).lower() == "me":
                 user_id = await _resolve_authenticated_user_id(context)
             params = {
-                "tweet.fields": "created_at,public_metrics,author_id",
+                "tweet.fields": f"created_at,public_metrics,author_id,{FULL_TEXT_FIELDS}",
                 "expansions": "author_id",
                 "user.fields": "username,name,verified",
                 "max_results": inputs.get("max_results", 10),
@@ -426,7 +446,7 @@ class GetBookmarksAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "posts": body.get("data", []),
+                    "posts": [_with_full_text(post) for post in body.get("data", [])],
                     "includes": body.get("includes", {}),
                     "meta": body.get("meta", {}),
                 },
