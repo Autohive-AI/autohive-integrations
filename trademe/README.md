@@ -113,8 +113,6 @@ key is then encoded for the Authorization header.
   API access is limited to in-trade sellers. Confirm your use case with Trade Me
   before production use.
 - Listing creation, updates, bidding, and buying are outside this first version.
-- `icon.png` is the SDK starter icon. Replace it with an approved Trade Me icon
-  before publication.
 
 ## Validation
 
