@@ -1,5 +1,6 @@
 """Mocked API contracts, application authentication and failure handling."""
 
+from copy import deepcopy
 from unittest.mock import patch
 
 import pytest
@@ -242,7 +243,7 @@ async def test_check_address_preserves_candidates_and_scores(mock_context):
             {"DPID": 109570, "FullAddress": "8 Water Lane, New Plymouth 4310", "MatchScore": 42, "Deliverable": "Y"},
         ],
     }
-    mock_context.fetch.side_effect = [token_response(), response(body)]
+    mock_context.fetch.side_effect = [token_response(), response(deepcopy(body))]
     result = await nz_post.execute_action(
         "check_address",
         {
@@ -281,7 +282,7 @@ async def test_postal_details_preserve_provider_fields(mock_context, as_list):
         "NZGD2kCoord": {"type": "Point", "coordinates": [174.1, -39.0]},
     }
     body = {"success": True, "status": "success", "details": [detail] if as_list else detail}
-    mock_context.fetch.side_effect = [token_response(), response(body)]
+    mock_context.fetch.side_effect = [token_response(), response(deepcopy(body))]
     result = await nz_post.execute_action("get_postal_address_details", {"dpid": " 109570 "}, mock_context)
     assert result.type == ResultType.ACTION
     assert result.result.data == body
