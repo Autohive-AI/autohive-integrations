@@ -1,6 +1,6 @@
 # JobAdder Integration
 
-Connect Autohive workflows to JobAdder's recruitment management API. Manage jobs, find candidates and client records, inspect invoices and recruitment activity, create follow-up tasks, manage applications, and report on placements. Version 1.4.0 provides 83 actions, including 14 new job actions, using the existing OAuth scopes.
+Connect Autohive workflows to JobAdder's recruitment management API. Manage jobs, audit job ads, find candidates and client records, inspect invoices and recruitment activity, create follow-up tasks, manage applications, and report on placements.
 
 ## Authentication
 
@@ -8,6 +8,7 @@ This integration uses JobAdder OAuth 2.0 through Autohive. It requests only the 
 
 - `read_user`
 - `read_job` and `write_job`
+- `read_jobad`
 - `read_candidate` and `write_candidate`
 - `read_contact`, `write_contact`, `read_company`, and `read_note`
 - `read_contact_note`, `read_candidate_note`, `read_job_note`, `read_jobapplication_note`, `read_placement_note`, and `read_company_note`
@@ -19,6 +20,8 @@ JobAdder returns the account's API base URL during OAuth. Autohive stores that U
 
 Existing JobAdder connections created before version 1.3.0 must also reconnect or reauthorise to grant the new `write_contact` scope before using `update_contact` or `set_contact_status`.
 
+Reconnect or reauthorise existing JobAdder connections to grant `read_jobad` before using the job ad actions added in version 1.5.0.
+
 API access requires a JobAdder developer application and approval. See the [JobAdder API documentation](https://developers.jobadder.com/docs/) and [OAuth 2.0 guide](https://jobadderapi.zendesk.com/hc/en-us/articles/360022196774-OAuth2-Authentication).
 
 ## Actions
@@ -26,6 +29,11 @@ API access requires a JobAdder developer application and approval. See the [JobA
 ### Account
 
 - `get_current_user` — return the JobAdder user who authorised the connection.
+
+### Job ads
+
+- `list_job_ads` — list ad summaries with offset/limit pagination. Use the returned `state`, `postAt`, and `expireAt` fields to select live ads in your workflow. JobAdder's account-wide ad endpoint has no live-only filter.
+- `get_job_ad` — pass an `ad_id` from the list response to retrieve full ad details, including the title, summary, bullet points, and description when present. Use this copy to check branding text, required sections, closing instructions, and typos.
 
 ### Jobs
 
@@ -188,4 +196,4 @@ Configure non-secret IDs from the same sandbox account in `tests/teamcity.env`. 
 - Rate limits are applied per JobAdder account. The SDK handles ordinary request transport and errors, but workflows should avoid unnecessarily aggressive polling.
 - Candidate and contact profiles and statuses can be updated, and candidate and job attachments can be uploaded and updated. Job management, structured activity retrieval, and follow-up tasks are supported as described above. The integration does not create contacts or update companies, existing notes/activities, application or placement attachments, placements, or timesheets.
 - JobAdder restricts attachment file extensions and returns HTTP 422 for unsupported files. See [Attachments - File Type restrictions](https://jobadderapi.zendesk.com/hc/en-us/articles/4407420419353-Attachments-File-Type-restrictions).
-- The integration does not manage application statuses, requisitions, job ads, partner actions, or webhooks. It does not create standalone job notes, update tasks, or modify custom-field definitions.
+- The integration provides read-only access to job ads. It does not manage application statuses, requisitions, partner actions, or webhooks. It does not create standalone job notes, update tasks, or modify custom-field definitions.

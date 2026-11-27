@@ -17,10 +17,10 @@ restored here.
 
 import asyncio
 import base64
-from unittest.mock import AsyncMock
 
 import pytest
-from autohive_integrations_sdk import FetchResponse
+import pytest_asyncio
+from autohive_integrations_sdk import ExecutionContext
 from autohive_integrations_sdk.integration import ResultType
 
 from jobadder.jobadder import jobadder
@@ -43,34 +43,19 @@ def require_integer_id(value: str | None, variable_name: str) -> int:
         pytest.fail(f"{variable_name} must be an integer")
 
 
-@pytest.fixture
-def live_context(env_credentials, make_context):
+@pytest_asyncio.fixture
+async def live_context(env_credentials):
     access_token = env_credentials("JOBADDER_ACCESS_TOKEN")
     api_url = env_credentials("JOBADDER_API_URL")
     if not access_token or not api_url:
         pytest.skip("JOBADDER_ACCESS_TOKEN and JOBADDER_API_URL are required")
 
-    import aiohttp
-
-    async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
-        merged_headers = dict(headers or {})
-        merged_headers["Authorization"] = f"Bearer {access_token}"
-        async with aiohttp.ClientSession() as session:
-            async with session.request(method, url, json=json, headers=merged_headers, params=params) as response:
-                data = await response.json(content_type=None)
-                if response.status >= 400:
-                    raise RuntimeError(f"JobAdder returned HTTP {response.status}: {data}")
-                return FetchResponse(status=response.status, headers=dict(response.headers), data=data)
-
-    context = make_context(
-        auth={
-            "auth_type": "PlatformOauth2",
-            "credentials": {"access_token": access_token},
-        }
-    )
-    context.fetch = AsyncMock(side_effect=real_fetch)
-    context.metadata = {"api": api_url}
-    return context
+    auth = {
+        "auth_type": "PlatformOauth2",
+        "credentials": {"access_token": access_token},
+    }
+    async with ExecutionContext(auth=auth, metadata={"api": api_url}) as context:
+        yield context
 
 
 @pytest.fixture
@@ -105,6 +90,26 @@ class TestCurrentUser:
         assert result.type == ResultType.ACTION
         assert isinstance(result.result.data["user"], dict)
         assert "userId" in result.result.data["user"]
+
+
+class TestJobAds:
+    async def test_list_job_ads_count_only(self, live_context):
+        result = await jobadder.execute_action("list_job_ads", {"limit": 0}, live_context)
+
+        assert_list_result(result, "job_ads", max_items=0)
+
+    async def test_get_ad_returned_by_list(self, live_context):
+        listed = await jobadder.execute_action("list_job_ads", {"limit": 1}, live_context)
+        assert_list_result(listed, "job_ads", max_items=1)
+        ads = listed.result.data["job_ads"]
+        if not ads:
+            pytest.skip("The JobAdder test account has no job ads")
+
+        ad_id = ads[0]["adId"]
+        result = await jobadder.execute_action("get_job_ad", {"ad_id": ad_id}, live_context)
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data["job_ad"]["adId"] == ad_id
 
 
 class TestJobs:

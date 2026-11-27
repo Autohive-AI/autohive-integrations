@@ -355,6 +355,25 @@ class GetJobAction(ActionHandler):
             return ActionError(message=str(exc))
 
 
+@jobadder.action("list_job_ads")
+class ListJobAdsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(context, "/jobads", "job_ads", _pagination(inputs))
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("get_job_ad")
+class GetJobAdAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            response = await context.fetch(f"{get_api_base_url(context)}/jobads/{inputs['ad_id']}", method="GET")
+            return ActionResult(data={"job_ad": response.data})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
 @jobadder.action("list_candidates")
 class ListCandidatesAction(ActionHandler):
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
