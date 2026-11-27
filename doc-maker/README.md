@@ -305,20 +305,15 @@ pip install -r requirements.txt
 
 ### Local Development Setup
 
-```bash
-# Install dependencies locally
-pip install -r requirements.txt -t dependencies
+Install HiveUp using the [contributor setup](../CONTRIBUTING.md#local-validation), then run mocked unit tests from the repository root:
 
-# Run test suite
-cd tests
-python test_doc-maker.py           # Main tests (6 tests)
-python test_template_filling.py    # Template tests (2 tests)
-python test_spacing_fix.py         # Formatting tests
+```bash
+hiveup test doc-maker
 ```
 
 ### Test Output
 
-All tests generate `.docx` files in `tests/` directory for verification in Microsoft Word.
+Mocked unit tests run without credentials. For optional integration tests and document-output inspection, use the [prepared-environment instructions](../CONTRIBUTING.md#running-integration-tests) and the current `tests/test_doc_maker_integration.py`, not the retired manual runners.
 
 ## Complete Actions Reference
 

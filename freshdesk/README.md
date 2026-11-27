@@ -375,12 +375,13 @@ Adds a public reply to a ticket (visible to customer).
 
 ## Testing
 
-To test the integration:
+Install HiveUp using the [contributor setup](../CONTRIBUTING.md#local-validation), then run mocked unit tests from the repository root:
 
-1. Navigate to the integration directory: `cd freshdesk`
-2. Install dependencies: `pip install -r requirements.txt`
-3. Update test credentials in `tests/test_freshdesk.py`
-4. Run tests: `python tests/test_freshdesk.py`
+```bash
+hiveup test freshdesk
+```
+
+Unit tests do not need credentials. For optional live tests, use the [prepared-environment and safe-selector instructions](../CONTRIBUTING.md#running-integration-tests); keep credentials in an uncommitted `.env`, not tracked test files.
 
 ## Common Use Cases
 

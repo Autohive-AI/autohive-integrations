@@ -4,7 +4,7 @@ This repository hosts Autohive integrations made and maintained by the Autohive 
 
 ## Getting Started
 
-- 📖 **[Building Your First Integration](https://github.com/autohive-ai/integrations-sdk/blob/master/docs/manual/building_your_first_integration.md)** — tutorial, API reference, and patterns (SDK repo)
+- 📖 **[Building Your First Integration](https://github.com/autohive-ai/integrations-sdk/blob/release/2.1.0/docs/manual/building_your_first_integration.md)** — tutorial and patterns for released SDK 2.1.0
 - 🧭 **[Integration Engineering Charter](integration-engineering-charter.md)** — principles for API understanding, safe permissions, testing, documentation, and review readiness
 - ✅ **[Validation & CI](https://github.com/autohive-ai/autohive-integrations-tooling)** — tooling that checks every PR (tooling repo)
 - 🤝 **[Contributing](CONTRIBUTING.md)** — PR process, local setup, and CI details for this repo
@@ -37,7 +37,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### API Call
 
-[api-call](api-call): Generic API integration for making HTTP GET and POST requests to any API endpoint. Supports custom headers, query parameters, and request bodies with automatic Content-Type handling for JSON. Uses the SDK's `context.fetch()` method for HTTP requests. Features flexible body handling with `json_body` and `body` input options, response data with status codes and headers, and ActionResult return type. Includes 2 actions covering GET and POST requests. No authentication configuration required — target API credentials are passed via custom headers. Ideal for connecting to APIs without dedicated integrations, webhook testing, and custom API workflow automation.
+[api-call](api-call): Generic API integration for making HTTP GET and POST requests to any API endpoint. Supports custom headers, query parameters, and request bodies with automatic Content-Type handling for JSON. Uses the SDK's `context.fetch()` method for HTTP requests. Features flexible body handling with `json_body` and `body` input options and an ActionResult return type. Its existing SDK 1.x implementation returns response bodies but uses fallback status codes and empty response headers; see its [known limitations](api-call/README.md#known-limitations). Includes 2 actions covering GET and POST requests. No authentication configuration required — target API credentials are passed via custom headers. Ideal for connecting to APIs without dedicated integrations, webhook testing, and custom API workflow automation.
 
 ### Google Ads
 
@@ -433,7 +433,9 @@ Manage WorkZappy projects, tasks, and comments from Autohive workflows. Look up 
 
 ## Template
 
-Use the [starter template](https://github.com/autohive-ai/integrations-sdk/tree/master/samples/template) in the SDK repo as the starting point for new integrations.
+Use the [released SDK starter template](https://github.com/autohive-ai/integrations-sdk/tree/release/2.1.0/samples/template) for new integrations. Omit its standalone `pytest.ini` when copying it here so tests inherit this repository's shared fixtures and configuration.
+
+New integrations and explicit SDK upgrades should use `autohive-integrations-sdk~=2.1.0`. Existing integrations retain their own pins and behavior; updating this documentation does not upgrade them. SDK `master` tracks 3.x development, not the released 2.1.0 contract. Use the [canonical SDK skills](https://github.com/autohive-ai/integrations-sdk/tree/release/2.1.0/skills) for building, testing, reviewing, migrating, and upgrading integrations, and [CONTRIBUTING.md](CONTRIBUTING.md) for this repository's installed Python HiveUp workflow.
 
 ## Testing
 

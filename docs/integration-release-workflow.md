@@ -42,7 +42,8 @@ repository/config renames retain the backend and create a replacement Lambda.
 
 ## Setup and recovery
 
-Publish the companion HiveUp `2.5.0` tag before running this workflow. Follow the
+The workflow checks out Tooling's floating `v2` ref; it does not require a new
+Tooling release for documentation-only changes. Follow the
 [Admin rollout guide](https://github.com/Autohive-AI/autohive/blob/feat/github-integration-sync/docs/Integrations/GitHub%20integration%20release%20sync.md)
 for the existing migrations and environment prerequisites. Manual snapshot
 packaging is available directly in GitHub Actions for recovery.

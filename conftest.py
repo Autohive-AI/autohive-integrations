@@ -11,9 +11,15 @@ module's directory (instead of the SDK's package tree), which is needed when
 the SDK is installed as a site-package rather than vendored.
 
 Usage in any integration's tests/:
+    from autohive_integrations_sdk import FetchResponse
+
     def test_something(mock_context):
-        mock_context.fetch.return_value = {"data": ...}
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"data": "value"}
+        )
         ...
+
+These examples target SDK 2.x. Preserve the pinned contract for SDK 1.x tests.
 """
 
 from __future__ import annotations
@@ -96,11 +102,15 @@ def make_context():
 
     Example::
 
+        from autohive_integrations_sdk import FetchResponse
+
         def test_foo(make_context):
             ctx = make_context(
                 auth={"auth_type": "Custom", "credentials": {"api_key": "k"}}
             )
-            ctx.fetch.return_value = {...}
+            ctx.fetch.return_value = FetchResponse(
+                status=200, headers={}, data={"data": "value"}
+            )
     """
 
     def _factory(

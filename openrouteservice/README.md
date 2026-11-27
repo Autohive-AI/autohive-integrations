@@ -91,15 +91,14 @@ Other classifications: `authentication` (401), `invalid_request` (400, a blank A
 
 ## Testing
 
-Unit tests (mocked, CI default):
+Install HiveUp using the [contributor setup](../CONTRIBUTING.md#local-validation). Run mocked unit tests and validation from the repository root, replacing `<base-ref>` with the actual fetched PR target ref:
 
 ```bash
-pytest openrouteservice/
-python ../autohive-integrations-tooling/scripts/validate_integration.py openrouteservice
-python ../autohive-integrations-tooling/scripts/check_code.py openrouteservice
+hiveup test openrouteservice
+hiveup validate --base-ref <base-ref> openrouteservice
 ```
 
-Live API tests are read-only. They skip unless `OPENROUTESERVICE_API_KEY` is set (see the repo-root `.env.example`):
+Live API tests are read-only. Prepare a separate environment with this integration's existing requirements using the [live-test setup](../CONTRIBUTING.md#running-integration-tests). They skip unless `OPENROUTESERVICE_API_KEY` is set (see the repo-root `.env.example`):
 
 ```bash
 pytest openrouteservice/tests/test_openrouteservice_integration.py -m "integration and not destructive"

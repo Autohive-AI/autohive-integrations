@@ -374,18 +374,13 @@ The integration has the following dependencies:
 
 ## Testing
 
-To run the tests included with the integration:
+Install HiveUp using the [contributor setup](../CONTRIBUTING.md#local-validation), then run mocked unit tests from the repository root:
 
-1. Navigate to the integration's directory: `cd Zoho`
-2. Install dependencies: `pip install -r requirements.txt -t dependencies`
-3. Set up test environment with valid Zoho CRM test credentials
-4. Run the tests: `python tests/test_integration.py`
+```bash
+hiveup test zoho
+```
 
-The test suite includes:
-- Authentication and token management tests
-- CRUD operation tests for all major modules
-- Error handling and validation tests  
-- Advanced operations and COQL query tests
+Unit tests do not need credentials. For optional live CRM tests, use the [prepared-environment and safe-selector instructions](../CONTRIBUTING.md#running-integration-tests) with dedicated test-account credentials in an uncommitted `.env`.
 
 ## API Limitations
 
