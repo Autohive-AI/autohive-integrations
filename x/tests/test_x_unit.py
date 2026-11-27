@@ -10,6 +10,7 @@ import base64
 import importlib.util
 import os
 import sys
+from copy import deepcopy
 
 import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
@@ -310,6 +311,38 @@ class TestGetTweet:
         assert "non_public_metrics" in params["tweet.fields"]
 
     @pytest.mark.asyncio
+    async def test_long_post_returns_full_text(self):
+        full = "start " + "x" * 400 + " end"
+        ctx = make_ctx({"data": {"id": "t1", "text": full[:280], "note_tweet": {"text": full}}})
+        result = await x_integration.execute_action("get_tweet", {"post_id": "t1"}, ctx)
+        assert "note_tweet" in ctx.fetch.call_args.kwargs["params"]["tweet.fields"].split(",")
+        assert result.result.data["post"]["text"] == full
+        assert "note_tweet" not in result.result.data["post"]
+
+    @pytest.mark.asyncio
+    async def test_long_post_preserves_metadata_without_duplicate_text(self):
+        prefix = "x" * 300 + " "
+        short_url = "https://t.co/example"
+        full = prefix + short_url
+        entities = {
+            "urls": [
+                {
+                    "start": 301,
+                    "end": 321,
+                    "url": short_url,
+                    "expanded_url": "https://example.com/research",
+                }
+            ]
+        }
+        ctx = make_ctx({"data": {"id": "t1", "text": full[:280], "note_tweet": {"text": full, "entities": entities}}})
+        expected_post = {"id": "t1", "text": full, "note_tweet": {"entities": deepcopy(entities)}}
+
+        result = await x_integration.execute_action("get_tweet", {"post_id": "t1"}, ctx)
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data["post"] == expected_post
+
+    @pytest.mark.asyncio
     async def test_url_contains_post_id(self):
         ctx = make_ctx({"data": {}})
         await x_integration.execute_action("get_tweet", {"post_id": "999"}, ctx)
@@ -321,6 +354,33 @@ class TestGetTweet:
         result = await x_integration.execute_action("get_tweet", {"post_id": "t1"}, ctx)
         assert result.type == ResultType.ACTION_ERROR
         assert "network down" in result.result.message
+
+
+@pytest.mark.parametrize(
+    "action,inputs",
+    [
+        ("search_tweets", {"query": "x"}),
+        ("get_user_tweets", {"user_id": "u1"}),
+        ("get_liked_tweets", {"user_id": "u1"}),
+        ("get_bookmarks", {"user_id": "u1"}),
+    ],
+)
+@pytest.mark.asyncio
+async def test_post_lists_return_full_text_of_long_posts(action, inputs):
+    full = "start " + "y" * 400 + " end"
+    ctx = make_ctx(
+        {
+            "data": [
+                {"id": "long", "text": full[:280], "note_tweet": {"text": full}},
+                {"id": "short", "text": "short post"},
+            ],
+            "meta": {},
+        }
+    )
+    result = await x_integration.execute_action(action, inputs, ctx)
+    fields = ctx.fetch.call_args.kwargs["params"]["tweet.fields"].split(",")
+    assert "note_tweet" in fields and "article" in fields
+    assert [post["text"] for post in result.result.data["posts"]] == [full, "short post"]
 
 
 # =============================================================================
