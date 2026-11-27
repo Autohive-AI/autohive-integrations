@@ -143,11 +143,13 @@ Designed specifically for LLM agents that need to monitor tech news, create cura
 
 ## Testing
 
-To run the tests:
+Install HiveUp using the [contributor setup](../CONTRIBUTING.md#local-validation), then run mocked unit tests from the repository root:
 
-1.  Navigate to the integration's directory: `cd hackernews`
-2.  Install dependencies: `pip install -r requirements.txt -t dependencies`
-3.  Run the tests: `python tests/test_hackernews.py`
+```bash
+hiveup test hackernews
+```
+
+The optional live suite calls the public API even though no credentials are required. Use the [prepared-environment and explicit-file instructions](../CONTRIBUTING.md#running-integration-tests) rather than the retired manual runner.
 
 ## License
 

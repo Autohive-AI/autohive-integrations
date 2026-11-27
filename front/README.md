@@ -453,10 +453,10 @@ Note: Files uploaded in the conversation will automatically be attached to the m
 
 ## Testing
 
-To run the tests:
+Install HiveUp using the [contributor setup](../CONTRIBUTING.md#local-validation), then run mocked unit tests from the repository root:
 
-1. Navigate to the integration's directory: `cd front`
-2. Install dependencies: `pip install -r requirements.txt`
-3. Run the tests: `python tests/test_front.py`
+```bash
+hiveup test front
+```
 
-Note: The tests use mock authentication and are designed for development validation. For production testing, ensure you have valid Front OAuth credentials configured.
+Unit tests use mock authentication. Optional live tests require dedicated test-account credentials and the [prepared-environment and safe-selector instructions](../CONTRIBUTING.md#running-integration-tests), not production-account testing.
